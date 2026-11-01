@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
@@ -59,11 +60,20 @@ export function runProcess(
   })
 }
 export function runHook(root: string, hook: HookConfig, signal: AbortSignal) {
-  return runProcess(
-    root,
-    hook.command ?? [process.execPath, resolve(root, hook.script!)],
-    signal
-  )
+  const argv = hook.command ?? [process.execPath, resolve(root, hook.script!)]
+  if (argv[0] === 'architecture-kit') {
+    const cli = fileURLToPath(import.meta.resolve('architecture-kit'))
+    return runProcess(
+      root,
+      [
+        process.execPath,
+        resolve(cli, '../../../bin/architecture-kit.mjs'),
+        ...argv.slice(1)
+      ],
+      signal
+    )
+  }
+  return runProcess(root, argv, signal)
 }
 
 export async function writeEvidence(

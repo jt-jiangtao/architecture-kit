@@ -1,4 +1,10 @@
 import {
+  flowSources,
+  ruleSources,
+  resource,
+  profilePrefix
+} from 'architecture-kit/profiles/action-driver/resources.mjs'
+import {
   lstat,
   mkdir,
   readFile,
@@ -73,6 +79,8 @@ export interface OptimizeConfig {
   scanRoots: string[]
 }
 export interface ResolvedConfig {
+  profile?: 'action-driver'
+  sources?: { flows: typeof flowSources; rules: typeof ruleSources }
   schemaVersion: 1
   root: string
   inputPaths: string[]
@@ -230,7 +238,8 @@ async function parseRoot(file: string) {
   const raw = fields(
     await readJson(await confined(root, basename(file))),
     file,
-    ['schemaVersion', 'storage', 'flows']
+    ['schemaVersion', 'storage'],
+    ['flows', 'profile', 'allowApply']
   )
   if (raw.schemaVersion !== 1) invalid('schemaVersion', 'expected 1')
   const paths = fields(raw.storage, 'storage', ['root', 'output'])
@@ -255,11 +264,24 @@ async function parseRoot(file: string) {
       invalid('storage.' + key, 'reserved directory')
   }
   await confined(root, storage.root, 'storage.root')
-  const refs = fields(raw.flows, 'flows', [], flowNames)
+  const profile = raw.profile
+  if (
+    profile !== undefined &&
+    (profile !== 'action-driver' || raw.flows !== undefined)
+  )
+    invalid('profile', 'expected action-driver without local flow files')
+  if (
+    raw.allowApply !== undefined &&
+    (!profile || typeof raw.allowApply !== 'boolean')
+  )
+    invalid('allowApply', 'expected profile permission')
+  const refs = fields(profile ? flowSources : raw.flows, 'flows', [], flowNames)
   const flowFiles: Partial<Record<FlowName, string>> = {}
   for (const name of flowNames) {
     if (Object.hasOwn(refs, name))
-      flowFiles[name] = localPath(refs[name], `flows.${name}`)
+      flowFiles[name] = profile
+        ? flowSources[name]
+        : localPath(refs[name], `flows.${name}`)
   }
   const inputPaths = new Set<string>()
   const storageDirectory = await realpath(resolve(root, storage.root)).catch(
@@ -269,6 +291,13 @@ async function parseRoot(file: string) {
     }
   )
   async function inputFile(value: unknown, field: string): Promise<string> {
+    if (typeof value === 'string' && value.startsWith(profilePrefix)) {
+      if (!profile) invalid(field, 'package reference requires named profile')
+      if (!(await stat(resource(value))).isFile())
+        invalid(field, 'expected profile file')
+      inputPaths.add(value)
+      return value
+    }
     const path = localPath(value, field)
     const target = await confined(root, path)
     if (!(await stat(target)).isFile())
@@ -285,7 +314,15 @@ async function parseRoot(file: string) {
     return path
   }
   await inputFile(basename(file), 'config')
-  return { root, storage, flowFiles, inputPaths, inputFile }
+  return {
+    root,
+    storage,
+    flowFiles,
+    inputPaths,
+    inputFile,
+    profile,
+    allowApply: raw.allowApply === true
+  }
 }
 
 type InputFile = (value: unknown, field: string) => Promise<string>
@@ -472,8 +509,15 @@ export async function loadConfig(
   file: string,
   only?: FlowName
 ): Promise<ResolvedConfig> {
-  const { root, storage, flowFiles, inputPaths, inputFile } =
-    await parseRoot(file)
+  const {
+    root,
+    storage,
+    flowFiles,
+    inputPaths,
+    inputFile,
+    profile,
+    allowApply
+  } = await parseRoot(file)
   const flows: ResolvedConfig['flows'] = {}
   for (const name of only ? [only] : flowNames) {
     const path = flowFiles[name]
@@ -481,9 +525,8 @@ export async function loadConfig(
       if (only) invalid(name, 'flow not registered')
       continue
     }
-    const raw = await readJson(
-      resolve(root, await inputFile(path, `flows.${name}`))
-    )
+    const ref = await inputFile(path, `flows.${name}`)
+    const raw = await readJson(profile ? resource(ref) : resolve(root, ref))
     if (name === 'optimize')
       flows.optimize = await optimizeConfig(inputFile, raw, only === undefined)
     else if (name === 'cleanup')
@@ -497,7 +540,18 @@ export async function loadConfig(
     }
     if (only && !flows[name]?.enabled) invalid(name, 'flow disabled')
   }
+  if (profile && flows.cleanup) {
+    flows.cleanup.allowApply = allowApply
+    for (const ref of Object.values(ruleSources))
+      await inputFile(ref, 'profile rule')
+  }
   return {
+    ...(profile
+      ? {
+          profile: 'action-driver' as const,
+          sources: { flows: flowSources, rules: ruleSources }
+        }
+      : {}),
     schemaVersion: 1,
     root,
     storage,
@@ -517,7 +571,8 @@ async function writeMissing(file: string, value: unknown) {
 
 export async function initConfig(file: string): Promise<void> {
   await writeMissing(resolve(file), defaultRoot)
-  const { root, flowFiles } = await parseRoot(file)
+  const { root, flowFiles, profile } = await parseRoot(file)
+  if (profile) return
   for (const name of flowNames) {
     const path = flowFiles[name]
     if (path) await writeMissing(await confined(root, path), defaults[name])

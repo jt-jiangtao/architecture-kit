@@ -20,9 +20,27 @@ export function toolCommand(tool, args) {
     .find((file) => fs.existsSync(file))
   if (!manifest) throw new Error('Missing CLI dependency: ' + name)
   const bins = JSON.parse(fs.readFileSync(manifest, 'utf8')).bin
+  const configs = {
+    knip: 'knip.jsonc',
+    jscpd: 'jscpd.json',
+    syncpack: 'syncpack.config.js'
+  }
+  if (
+    Object.hasOwn(configs, tool) &&
+    !args.includes('--config') &&
+    !args.includes('--version')
+  )
+    args = [
+      ...args,
+      '--config',
+      path.join(import.meta.dirname, 'rules', configs[tool])
+    ]
   return [
     ...(tool === 'ast-grep' ? [] : [process.execPath]),
-    path.resolve(path.dirname(manifest), typeof bins === "string" ? bins : bins[tool]),
+    path.resolve(
+      path.dirname(manifest),
+      typeof bins === 'string' ? bins : bins[tool]
+    ),
     ...args
   ]
 }
@@ -41,7 +59,7 @@ export function boundaryCommand(repo, args = []) {
     .sort()
   return toolCommand('depcruise', [
     '--config',
-    'dependency-cruiser.config.cjs',
+    path.join(import.meta.dirname, 'rules/dependency-cruiser.config.cjs'),
     ...args,
     ...roots
   ])

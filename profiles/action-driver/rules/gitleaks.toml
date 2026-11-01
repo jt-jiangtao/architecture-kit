@@ -1,0 +1,10 @@
+title = "Action Driver local source scanning"
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated/vendor trees and local secret storage are outside the source-code scan; projection/distribution uses validate:config and secrets:check."
+paths = [
+  '''(^|/)(node_modules|thirdparty|vendor|artifacts|out|dist|coverage|\.build|\.git)/''',
+  '''(^|/)config/secrets/(local\.env|sources\.local\.json)$'''
+]

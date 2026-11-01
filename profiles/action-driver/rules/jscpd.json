@@ -1,0 +1,39 @@
+{
+  "threshold": 10,
+  "minTokens": 50,
+  "minLines": 5,
+  "mode": "mild",
+  "format": [
+    "typescript",
+    "tsx",
+    "javascript",
+    "jsx"
+  ],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.build/**",
+    "**/out/**",
+    "**/thirdparty/**",
+    "**/scripts/analysis/**",
+    "**/artifacts/evidence/**",
+    "**/artifacts/evidence-archive/**",
+    "**/vendor/**",
+    "**/coverage/**",
+    "**/*.min.js",
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "**/yarn.lock",
+    "**/*.d.ts",
+    "**/apps/mobile/**",
+    "artifacts/**"
+  ],
+  "reporters": [
+    "console",
+    "json",
+    "html"
+  ],
+  "output": "artifacts/test-reports/redundant-code/jscpd-report",
+  "absolute": false,
+  "silent": false
+}

@@ -8,11 +8,12 @@
       "target": "packages/runtime-storage/src/rollout/request-event-view.ts",
       "hypothesis": "首个事件已足够返回时，是否仍派生整个后缀？",
       "inputs": [
-        "packages/runtime-storage/tests/rollout/oversized-page-cost.test.ts",
+        "profile:action-driver/probes/oversized-page.fixture.ts",
         "packages/runtime-storage/tests/rollout/request-event-cache.test.ts",
         "vitest.config.ts",
         "packages/runtime-storage/src/rollout/event-bridge.ts",
-        "packages/runtime-storage/src/rollout/fold.ts"
+        "packages/runtime-storage/src/rollout/fold.ts",
+        "profile:action-driver/probes/vitest-probe.mjs"
       ],
       "check": [
         "node",
@@ -22,9 +23,8 @@
       ],
       "measure": [
         "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "packages/runtime-storage/tests/rollout/oversized-page-cost.test.ts"
+        "profile:action-driver/probes/vitest-probe.mjs",
+        "oversized-page"
       ],
       "unit": "deriveLine calls/page",
       "direction": "lower",
@@ -37,33 +37,33 @@
       "target": "packages/runtime-storage/src/rollout/request-event-view.ts",
       "hypothesis": "1000 与 32000 行历史下，长会话中位数应低于 10ms 且不超过短会话两倍",
       "inputs": [
-        "apps/local-runtime/tests/unit/rollout/hot-path-cost.test.ts"
+        "profile:action-driver/probes/hot-path-cost.fixture.ts",
+        "profile:action-driver/probes/vitest-probe.mjs"
       ],
       "check": [
         "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "apps/local-runtime/tests/unit/rollout/hot-path-cost.test.ts"
+        "profile:action-driver/probes/vitest-probe.mjs",
+        "hot-path-cost"
       ]
     },
     {
       "id": "shell-raw",
       "kind": "metric",
       "title": "桌面启动包 raw",
-      "target": "scripts/measure-loading-performance.mjs",
+      "target": "profile:action-driver/probes/measure-loading-performance.mjs",
       "hypothesis": "核对按需加载后启动包字节数",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "check": [
         "node",
         "--test",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "shell",
         "raw"
       ],
@@ -75,20 +75,20 @@
       "id": "shell-gzip",
       "kind": "metric",
       "title": "桌面启动包 gzip",
-      "target": "scripts/measure-loading-performance.mjs",
+      "target": "profile:action-driver/probes/measure-loading-performance.mjs",
       "hypothesis": "核对按需加载后启动包字节数",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "check": [
         "node",
         "--test",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "shell",
         "gzip"
       ],
@@ -100,20 +100,20 @@
       "id": "browser-startup-disabled",
       "kind": "metric",
       "title": "桌面 fixture startup-disabled",
-      "target": "scripts/measure-loading-performance.mjs",
+      "target": "profile:action-driver/probes/measure-loading-performance.mjs",
       "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "check": [
         "node",
         "--test",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "browser",
         "startup-disabled"
       ],
@@ -125,20 +125,20 @@
       "id": "browser-startup-warm",
       "kind": "metric",
       "title": "桌面 fixture startup-warm",
-      "target": "scripts/measure-loading-performance.mjs",
+      "target": "profile:action-driver/probes/measure-loading-performance.mjs",
       "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "check": [
         "node",
         "--test",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "browser",
         "startup-warm"
       ],
@@ -150,20 +150,20 @@
       "id": "browser-first-editor-disabled",
       "kind": "metric",
       "title": "桌面 fixture first-editor",
-      "target": "scripts/measure-loading-performance.mjs",
+      "target": "profile:action-driver/probes/measure-loading-performance.mjs",
       "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "check": [
         "node",
         "--test",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "browser",
         "first-editor-disabled"
       ],
@@ -175,20 +175,20 @@
       "id": "browser-editor-reopen",
       "kind": "metric",
       "title": "桌面 fixture editor-reopen",
-      "target": "scripts/measure-loading-performance.mjs",
+      "target": "profile:action-driver/probes/measure-loading-performance.mjs",
       "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "check": [
         "node",
         "--test",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "browser",
         "editor-reopen"
       ],
@@ -200,20 +200,20 @@
       "id": "browser-history-scroll",
       "kind": "metric",
       "title": "桌面 fixture history-scroll",
-      "target": "scripts/measure-loading-performance.mjs",
+      "target": "profile:action-driver/probes/measure-loading-performance.mjs",
       "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "check": [
         "node",
         "--test",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "browser",
         "history-scroll"
       ],
@@ -225,20 +225,20 @@
       "id": "browser-parser-10k",
       "kind": "metric",
       "title": "桌面 fixture parser-10k",
-      "target": "scripts/measure-loading-performance.mjs",
+      "target": "profile:action-driver/probes/measure-loading-performance.mjs",
       "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "check": [
         "node",
         "--test",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "browser",
         "parser-10k"
       ],
@@ -250,20 +250,20 @@
       "id": "browser-parser-100k",
       "kind": "metric",
       "title": "桌面 fixture parser-100k",
-      "target": "scripts/measure-loading-performance.mjs",
+      "target": "profile:action-driver/probes/measure-loading-performance.mjs",
       "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "check": [
         "node",
         "--test",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "browser",
         "parser-100k"
       ],
@@ -275,21 +275,21 @@
       "id": "turn-ttft",
       "kind": "metric",
       "title": "Turn ttft",
-      "target": "scripts/turn-metrics-report.mjs",
+      "target": "profile:action-driver/probes/turn-metrics-report.mjs",
       "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/turn-metrics-report.fixture.ts",
+        "profile:action-driver/probes/vitest-probe.mjs"
       ],
       "check": [
         "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/vitest-probe.mjs",
+        "turn-metrics-report"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "turn",
         "ttft"
       ],
@@ -301,21 +301,21 @@
       "id": "turn-decode",
       "kind": "metric",
       "title": "Turn decode",
-      "target": "scripts/turn-metrics-report.mjs",
+      "target": "profile:action-driver/probes/turn-metrics-report.mjs",
       "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/turn-metrics-report.fixture.ts",
+        "profile:action-driver/probes/vitest-probe.mjs"
       ],
       "check": [
         "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/vitest-probe.mjs",
+        "turn-metrics-report"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "turn",
         "decode"
       ],
@@ -327,21 +327,21 @@
       "id": "turn-stream-block",
       "kind": "metric",
       "title": "Turn stream-block",
-      "target": "scripts/turn-metrics-report.mjs",
+      "target": "profile:action-driver/probes/turn-metrics-report.mjs",
       "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/turn-metrics-report.fixture.ts",
+        "profile:action-driver/probes/vitest-probe.mjs"
       ],
       "check": [
         "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/vitest-probe.mjs",
+        "turn-metrics-report"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "turn",
         "stream-block"
       ],
@@ -353,21 +353,21 @@
       "id": "turn-harness",
       "kind": "metric",
       "title": "Turn harness",
-      "target": "scripts/turn-metrics-report.mjs",
+      "target": "profile:action-driver/probes/turn-metrics-report.mjs",
       "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/turn-metrics-report.fixture.ts",
+        "profile:action-driver/probes/vitest-probe.mjs"
       ],
       "check": [
         "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/vitest-probe.mjs",
+        "turn-metrics-report"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "turn",
         "harness"
       ],
@@ -379,21 +379,21 @@
       "id": "turn-cache-hit",
       "kind": "metric",
       "title": "Turn cache-hit",
-      "target": "scripts/turn-metrics-report.mjs",
+      "target": "profile:action-driver/probes/turn-metrics-report.mjs",
       "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/turn-metrics-report.fixture.ts",
+        "profile:action-driver/probes/vitest-probe.mjs"
       ],
       "check": [
         "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/vitest-probe.mjs",
+        "turn-metrics-report"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "turn",
         "cache-hit"
       ],
@@ -405,20 +405,21 @@
       "id": "media-capture",
       "kind": "metric",
       "title": "Linux 媒体 capture",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "capture"
       ],
@@ -430,20 +431,21 @@
       "id": "media-convert",
       "kind": "metric",
       "title": "Linux 媒体 convert",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "convert"
       ],
@@ -455,20 +457,21 @@
       "id": "media-encode",
       "kind": "metric",
       "title": "Linux 媒体 encode",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "encode"
       ],
@@ -480,20 +483,21 @@
       "id": "media-packetize",
       "kind": "metric",
       "title": "Linux 媒体 packetize",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "packetize"
       ],
@@ -546,20 +550,20 @@
       "id": "browser-first-editor-warm",
       "kind": "metric",
       "title": "桌面 fixture first-editor",
-      "target": "scripts/measure-loading-performance.mjs",
+      "target": "profile:action-driver/probes/measure-loading-performance.mjs",
       "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "check": [
         "node",
         "--test",
-        "tests/unit/scripts/loading-performance.test.mjs"
+        "profile:action-driver/probes/loading-performance.test.mjs"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "browser",
         "first-editor-warm"
       ],
@@ -571,21 +575,21 @@
       "id": "turn-harness-ratio",
       "kind": "metric",
       "title": "Harness 时间占比",
-      "target": "scripts/turn-metrics-report.mjs",
+      "target": "profile:action-driver/probes/turn-metrics-report.mjs",
       "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/turn-metrics-report.fixture.ts",
+        "profile:action-driver/probes/vitest-probe.mjs"
       ],
       "check": [
         "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "tests/turn-metrics-report.test.ts"
+        "profile:action-driver/probes/vitest-probe.mjs",
+        "turn-metrics-report"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "turn",
         "harness-ratio"
       ],
@@ -597,20 +601,21 @@
       "id": "media-capture-cpupercent",
       "kind": "metric",
       "title": "Linux 媒体 capture cpuPercent",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "capture",
         "cpuPercent"
@@ -623,20 +628,21 @@
       "id": "media-capture-gap-p95",
       "kind": "metric",
       "title": "Linux 媒体 capture gap-p95",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "capture",
         "gap-p95"
@@ -649,20 +655,21 @@
       "id": "media-capture-gapsover50ms",
       "kind": "metric",
       "title": "Linux 媒体 capture gapsOver50ms",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "capture",
         "gapsOver50ms"
@@ -675,20 +682,21 @@
       "id": "media-convert-cpupercent",
       "kind": "metric",
       "title": "Linux 媒体 convert cpuPercent",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "convert",
         "cpuPercent"
@@ -701,20 +709,21 @@
       "id": "media-convert-gap-p95",
       "kind": "metric",
       "title": "Linux 媒体 convert gap-p95",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "convert",
         "gap-p95"
@@ -727,20 +736,21 @@
       "id": "media-convert-gapsover50ms",
       "kind": "metric",
       "title": "Linux 媒体 convert gapsOver50ms",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "convert",
         "gapsOver50ms"
@@ -753,20 +763,21 @@
       "id": "media-encode-cpupercent",
       "kind": "metric",
       "title": "Linux 媒体 encode cpuPercent",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "encode",
         "cpuPercent"
@@ -779,20 +790,21 @@
       "id": "media-encode-gap-p95",
       "kind": "metric",
       "title": "Linux 媒体 encode gap-p95",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "encode",
         "gap-p95"
@@ -805,20 +817,21 @@
       "id": "media-encode-gapsover50ms",
       "kind": "metric",
       "title": "Linux 媒体 encode gapsOver50ms",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "encode",
         "gapsOver50ms"
@@ -831,20 +844,21 @@
       "id": "media-packetize-cpupercent",
       "kind": "metric",
       "title": "Linux 媒体 packetize cpuPercent",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "packetize",
         "cpuPercent"
@@ -857,20 +871,21 @@
       "id": "media-packetize-gap-p95",
       "kind": "metric",
       "title": "Linux 媒体 packetize gap-p95",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "packetize",
         "gap-p95"
@@ -883,20 +898,21 @@
       "id": "media-packetize-gapsover50ms",
       "kind": "metric",
       "title": "Linux 媒体 packetize gapsOver50ms",
-      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "target": "profile:action-driver/probes/pipeline_benchmark.py",
       "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
       "inputs": [
-        "scripts/optimization/evidence.mjs",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
-        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+        "profile:action-driver/probes/evidence.mjs",
+        "profile:action-driver/probes/test_pipeline_benchmark.py",
+        "profile:action-driver/probes/pipeline_benchmark.py"
       ],
       "check": [
         "python3",
-        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+        "-B",
+        "profile:action-driver/probes/test_pipeline_benchmark.py"
       ],
       "measure": [
         "node",
-        "scripts/optimization/evidence.mjs",
+        "profile:action-driver/probes/evidence.mjs",
         "media",
         "packetize",
         "gapsOver50ms"

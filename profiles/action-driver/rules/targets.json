@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "id": "linux-desktop-media",
+      "root": "apps/linux-desktop/media",
+      "sourceRoots": ["apps/linux-desktop/media/src"],
+      "testRoots": ["apps/linux-desktop/media/tests"],
+      "packageManager": "npm (independent lock; no automatic install)",
+      "triggers": ["apps/linux-desktop/media/**", "deploy/linux-desktop/service/**", "deploy/linux-desktop/compose*.yaml", "deploy/remote-dev/Dockerfile.media*", "deploy/remote-dev/stage-media.mjs", "deploy/remote-dev/compose.linux.yaml"],
+      "dependencies": ["@action-driver/runtime-contracts", "@action-driver/mobile-protocol"],
+      "checks": [
+        {"id": "syntax", "command": ["architecture-kit:check-target", "syntax", "linux-desktop-media"], "cwd": "."},
+        {"id": "boundaries", "command": ["architecture-kit:check-target", "boundaries", "linux-desktop-media"], "cwd": "."},
+        {"id": "tests", "command": ["node", "node_modules/vitest/vitest.mjs", "run", "apps/linux-desktop/media/tests"], "cwd": "."}
+      ]
+    },
+    {
+      "id": "linux-desktop-executor",
+      "root": "apps/linux-desktop/executor",
+      "sourceRoots": ["apps/linux-desktop/executor"],
+      "testRoots": ["apps/linux-desktop/executor/tests"],
+      "excludedRoots": ["apps/linux-desktop/executor/cua", "apps/linux-desktop/executor/tests"],
+      "packageManager": "Docker Python environment (independent; no automatic install)",
+      "triggers": ["apps/linux-desktop/executor/**", "deploy/linux-desktop/desktop/**", "deploy/linux-desktop/compose*.yaml", "deploy/linux-desktop/seccomp-chromium.json", "deploy/linux-desktop/stage-cua.mjs", "deploy/remote-dev/compose.linux.yaml", "apps/local-runtime/scripts/copy-js-entry.mjs", "apps/local-runtime/resources/js-repl/**"],
+      "dependencies": ["@action-driver/runtime-contracts", "@action-driver/cua", "@action-driver/browser-runtime", "@action-driver/browser-desktop"],
+      "checks": [
+        {"id": "syntax", "command": ["architecture-kit:check-target", "syntax", "linux-desktop-executor"], "cwd": "."},
+        {"id": "boundaries", "command": ["architecture-kit:check-target", "boundaries", "linux-desktop-executor"], "cwd": "."},
+        {"id": "tests", "command": ["python3", "-I", "-B", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"], "cwd": "apps/linux-desktop/executor"},
+        {"id": "runtime-coverage", "pending": "CUA staging and Linux X11/GStreamer runtime coverage require applicable build/start evidence; skipped runtime tests are not proof of coverage."}
+      ]
+    },
+    {
+      "id": "linux-desktop-host",
+      "root": "apps/linux-desktop/host",
+      "sourceRoots": ["apps/linux-desktop/host"],
+      "testRoots": ["apps/linux-desktop/host/tests"],
+      "excludedRoots": ["apps/linux-desktop/host/tests"],
+      "packageManager": "Node builtins (no install)",
+      "triggers": ["apps/linux-desktop/host/**", "deploy/remote-dev/desktop-host.service", "deploy/remote-dev/configure-desktop-host.py", "deploy/linux-desktop/seccomp-chromium.json"],
+      "dependencies": ["@action-driver/runtime-contracts"],
+      "checks": [
+        {"id": "syntax", "command": ["architecture-kit:check-target", "syntax", "linux-desktop-host"], "cwd": "."},
+        {"id": "boundaries", "command": ["architecture-kit:check-target", "boundaries", "linux-desktop-host"], "cwd": "."},
+        {"id": "tests", "command": ["node", "node_modules/vitest/vitest.mjs", "run", "apps/linux-desktop/host/tests"], "cwd": "."}
+      ]
+    },
+    {
+      "id": "office-mcp-gateway",
+      "root": "apps/office-mcp/gateway",
+      "sourceRoots": ["apps/office-mcp/gateway"],
+      "testRoots": [],
+      "packageManager": "npm (independent lock; no automatic install)",
+      "triggers": ["apps/office-mcp/gateway/**", "deploy/office-mcp/**"],
+      "dependencies": ["@action-driver/runtime-contracts"],
+      "checks": [
+        {"id": "syntax", "command": ["architecture-kit:check-target", "syntax", "office-mcp-gateway"], "cwd": "."},
+        {"id": "boundaries", "command": ["architecture-kit:check-target", "boundaries", "office-mcp-gateway"], "cwd": "."},
+        {"id": "behavior-coverage", "pending": "Gateway protocol/backend behavior needs isolated build and handshake evidence (ACCEPT-14); syntax alone is not behavior acceptance."}
+      ]
+    },
+    {
+      "id": "mobile",
+      "root": "apps/mobile",
+      "sourceRoots": ["apps/mobile/src"],
+      "testRoots": ["apps/mobile/tests"],
+      "packageManager": "Expo/npm (independent; no automatic install)",
+      "triggers": ["apps/mobile/**"],
+      "dependencies": ["@action-driver/mobile-protocol", "@action-driver/icons", "@action-driver/telemetry"],
+      "checks": [
+        {"id": "typecheck", "command": ["node", "node_modules/typescript/bin/tsc", "--noEmit", "-p", "tsconfig.json"], "cwd": "apps/mobile"},
+        {"id": "tests", "pending": "Mobile tests mix node:test and vitest runners and require an Expo/native environment; run them explicitly with Node 22 and resolve the runner split. Typecheck alone is not test coverage."}
+      ]
+    }
+  ]
+}

@@ -40,7 +40,7 @@ export function scanWorkingTree(repo, report, execute = executeCommand) {
         'dir',
         '.',
         '--config',
-        path.join(repo, 'config/quality/gitleaks.toml'),
+        path.join(import.meta.dirname,'../rules/gitleaks.toml'),
         '--redact',
         '--report-format',
         'json',

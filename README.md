@@ -59,7 +59,7 @@ Deletion is restricted to a clean tracked L1 whole file with both reachability a
 
 ## Optimize
 
-Action-Driver registers optimization scenarios in `config/architecture-kit/optimize.json`. Run `architecture-kit optimize check --json` for the whole catalog and TS/JS source patterns, or select one task:
+Action-Driver selects `"profile": "action-driver"` in its root configuration. The CLI supplies separate cleanup and optimize catalogs, native tool rules and measurement probes. Run `architecture-kit config show` for effective settings and resource references. Install or refresh the independent optimization skill with `architecture-kit skill add optimize-repair` or `architecture-kit skill update optimize-repair`. Run `architecture-kit optimize check --json` for the whole catalog and TS/JS source patterns, or select one task:
 
 ```sh
 architecture-kit optimize check --run-id rollout --task rollout-oversized-page --json

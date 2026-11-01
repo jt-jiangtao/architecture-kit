@@ -4,9 +4,5 @@
     "root": ".architecture-kit",
     "output": "output"
   },
-  "flows": {
-    "cleanup": "./config/architecture-kit/cleanup.json",
-    "architecture": "./config/architecture-kit/architecture.json",
-    "optimize": "./config/architecture-kit/optimize.json"
-  }
+  "profile": "action-driver"
 }

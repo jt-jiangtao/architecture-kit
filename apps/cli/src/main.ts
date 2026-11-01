@@ -1,3 +1,7 @@
+import {
+  resource,
+  profilePrefix
+} from 'architecture-kit/profiles/action-driver/resources.mjs'
 import { parseArgs } from 'node:util'
 import { relative, resolve, join, isAbsolute, sep } from 'node:path'
 import { readFile, realpath } from 'node:fs/promises'
@@ -31,7 +35,12 @@ import { profileOperation } from './profile-operation.js'
 
 import { optimizeOperation } from './optimize-operation.js'
 
+import { spawn } from 'node:child_process'
 const commands = new Map([
+  [
+    'optimize capture',
+    'Run a packaged measurement entry: -- stamp | loading INPUT OUTPUT [BUILD-LOG] | turn ARGS | media ARGS | content-performance | lazy-loading.'
+  ],
   [
     'optimize check',
     'Collect optimization evidence; --task ID selects a scenario, --from ROUND compares within --run-id ID, --cleanup-from RUN/ROUND imports duplicate candidates.'
@@ -44,6 +53,11 @@ const commands = new Map([
     'tools status',
     'Show CLI-managed native executable paths and availability.'
   ],
+  [
+    'skill add optimize-repair',
+    'Install the optimization review and verification skill.'
+  ],
+  ['skill update optimize-repair', 'Update the managed optimization skill.'],
   ['skill add cleanup-repair', 'Install the repair skill in this project.'],
   ['skill update cleanup-repair', 'Update a CLI-managed repair skill.'],
   [
@@ -163,7 +177,9 @@ export async function main(argv: string[]): Promise<number> {
         apply: { type: 'boolean' }
       }
     })
-    const cmd = positionals.join(' ')
+    const capture =
+      positionals[0] === 'optimize' && positionals[1] === 'capture'
+    const cmd = capture ? 'optimize capture' : positionals.join(' ')
     if (values.version) {
       console.log('architecture-kit ' + ARCHITECTURE_KIT_VERSION)
       return 0
@@ -224,6 +240,37 @@ export async function main(argv: string[]): Promise<number> {
       throw new Error('--from requires --run-id')
     machine = Boolean(values.json)
     const file = resolve(values.config ?? 'architecture-kit.config.json')
+    if (capture) {
+      const config = await loadConfig(file, 'optimize')
+      if (!config.profile)
+        throw new Error('Capture requires action-driver profile')
+      const [name, ...args] = positionals.slice(2)
+      const entries: Record<string, string> = {
+        stamp: 'evidence.mjs',
+        loading: 'measure-loading-performance.mjs',
+        turn: 'turn-metrics-report.mjs',
+        media: 'pipeline_benchmark.py',
+        'content-performance': 'browser.mjs',
+        'lazy-loading': 'browser.mjs'
+      }
+      if (!name || !Object.hasOwn(entries, name))
+        throw new Error('See optimize capture --help')
+      const child = spawn(
+        name === 'media' ? 'python3' : process.execPath,
+        [
+          resource(profilePrefix + 'probes/' + entries[name]),
+          ...(['stamp', 'content-performance', 'lazy-loading'].includes(name)
+            ? [name]
+            : []),
+          ...args
+        ],
+        { cwd: config.root, stdio: 'inherit', signal: controller.signal }
+      )
+      return await new Promise<number>((ok, fail) => {
+        child.once('error', fail)
+        child.once('close', (code) => ok(code ?? 2))
+      })
+    }
     if (cmd.startsWith('tools ')) {
       const r = await runProcess(
         process.cwd(),
@@ -245,7 +292,11 @@ export async function main(argv: string[]): Promise<number> {
     }
     if (cmd.startsWith('skill ')) {
       console.log(
-        await installRepairSkill(dirname(file), cmd.startsWith('skill update'))
+        await installRepairSkill(
+          dirname(file),
+          cmd.startsWith('skill update'),
+          positionals[2]
+        )
       )
       return 0
     }
@@ -300,6 +351,14 @@ export async function main(argv: string[]): Promise<number> {
     async function configuredInputs() {
       const entries = await Promise.all(
         inputPaths.map(async (file) => {
+          if (config.profile && file.startsWith(profilePrefix))
+            return [
+              file,
+              file,
+              createHash('sha256')
+                .update(await readFile(resource(file)))
+                .digest('hex')
+            ]
           const path = await realpath(join(root, file))
           const rel = relative(root, path)
           if (rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel))

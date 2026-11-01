@@ -1,3 +1,7 @@
+import {
+  resource,
+  profilePrefix
+} from 'architecture-kit/profiles/action-driver/resources.mjs'
 import { discoverPatterns } from '../../../packages/adapters/src/optimization-patterns.js'
 import { createHash } from 'node:crypto'
 import { cpus, hostname, release } from 'node:os'
@@ -171,6 +175,8 @@ export async function optimizeOperation(
     }
   }
   async function projectInput(file: string) {
+    if (config.profile && file.startsWith(profilePrefix))
+      return readFile(resource(file))
     const rel = relative(
       resolve(config.root, config.storage.root),
       resolve(config.root, file)
@@ -234,12 +240,19 @@ export async function optimizeOperation(
         save = (name: string, s: string) =>
           writeEvidence(round.output, base + name, s)
       await save(stage + '-command.json', JSON.stringify(args) + '\n')
-      const proc = await runProcess(config.root, args, signal, {
-        ...process.env,
-        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: 'error',
-        ARCHITECTURE_KIT_SOURCE_DIGEST: before,
-        ARCHITECTURE_KIT_MEASUREMENT: join(round.output, base, 'samples.json')
-      })
+      const proc = await runProcess(
+        config.root,
+        args.map((a) =>
+          config.profile && a.startsWith(profilePrefix) ? resource(a) : a
+        ),
+        signal,
+        {
+          ...process.env,
+          PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: 'error',
+          ARCHITECTURE_KIT_SOURCE_DIGEST: before,
+          ARCHITECTURE_KIT_MEASUREMENT: join(round.output, base, 'samples.json')
+        }
+      )
       const logs: string[] = []
       for (const stream of ['stdout', 'stderr'] as const)
         if (proc[stream]) {

@@ -1,16 +1,13 @@
 {
   "enabled": true,
-  "reportPackages": [
-    "@action-driver/plugin-sdk",
-    "@action-driver/plugin-contracts"
-  ],
+  "reportPackages": [],
   "debt": "./config/quality/cleanup-debt.json",
   "allowApply": false,
   "tools": {
     "knip": {
       "enabled": true,
       "required": true,
-      "configFile": "./knip.jsonc",
+      "configFile": "profile:action-driver/rules/knip.jsonc",
       "modes": [
         "default",
         "production"
@@ -34,8 +31,6 @@
         "id": "check-boundaries",
         "required": true,
         "command": [
-          "pnpm",
-          "exec",
           "architecture-kit",
           "cleanup",
           "boundaries"

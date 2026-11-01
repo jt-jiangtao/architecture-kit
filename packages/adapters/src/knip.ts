@@ -1,3 +1,7 @@
+import {
+  resource,
+  profilePrefix
+} from 'architecture-kit/profiles/action-driver/resources.mjs'
 import { createRequire } from 'node:module'
 import { existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -115,11 +119,23 @@ export async function runKnip(
     }
     if (config)
       run.configDigest = createHash('sha256')
-        .update(await readFile(resolve(root, config)))
+        .update(
+          await readFile(
+            config.startsWith(profilePrefix)
+              ? resource(config)
+              : resolve(root, config)
+          )
+        )
         .digest('hex')
     const exec = await runProcess(
       root,
-      [process.execPath, join(packageDir, manifest.bin.knip), ...argv.slice(1)],
+      [
+        process.execPath,
+        join(packageDir, manifest.bin.knip),
+        ...argv
+          .slice(1)
+          .map((a) => (a.startsWith(profilePrefix) ? resource(a) : a))
+      ],
       signal
     )
     run.exitCode = exec.exitCode

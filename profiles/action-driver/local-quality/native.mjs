@@ -134,7 +134,7 @@ export function workspacePackages(repo) {
   return result
 }
 export function independentTargets(repo) {
-  const file = path.join(repo, 'config/quality/targets.json')
+  const file = path.join(import.meta.dirname,'../rules/targets.json')
   if (!fs.existsSync(file)) {
     const apps = path.join(repo, 'apps')
     const nested = fs.existsSync(apps) && fs.readdirSync(apps).some(name => {
@@ -142,7 +142,7 @@ export function independentTargets(repo) {
       return fs.statSync(directory).isDirectory() && !fs.existsSync(path.join(directory, 'package.json')) &&
         fs.readdirSync(directory).some(child => fs.existsSync(path.join(directory, child, 'package.json')))
     })
-    if (nested) throw new Error('Independent applications require config/quality/targets.json')
+    if (nested) throw new Error('Independent applications require the packaged targets.json registry')
     return []
   }
   const data = JSON.parse(fs.readFileSync(file, 'utf8'))

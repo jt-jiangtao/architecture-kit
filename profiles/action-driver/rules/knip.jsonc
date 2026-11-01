@@ -1,0 +1,187 @@
+/**
+ * Knip — unused files / exports / deps for the action-driver monorepo.
+ * Run pnpm exec architecture-kit cleanup check. See the cleanup-repair skill.
+ */
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  "ignoreWorkspaces": [
+    "apps/mobile"
+  ],
+  "ignore": [
+    "scripts/analysis/**",
+    "tests/fixtures/analysis/**",
+    "tests/analysis/**",
+    "artifacts/analysis-archive/**",
+    "workbench/**",
+    "thirdparty/**",
+    "artifacts/evidence/**",
+    "artifacts/evidence-archive/**",
+    "out/**",
+    ".build/**",
+    "dist/**",
+    "**/out/**",
+    "**/.build/**",
+    "**/dist/**",
+    "**/vendor/**",
+    "plugins/visual-creation/vendor/**",
+    "evidence*.dvc",
+    "artifacts/*.dvc"
+  ],
+  "ignoreBinaries": [],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/**/*.{mjs,js,cjs,ts}",
+        "vitest.config.ts",
+        "tests/**/*.{test,spec}.{ts,tsx,mjs,js}",
+        "tests/setup.ts",
+        "eslint.config.*"
+      ],
+      "project": [
+        "scripts/**/*.{mjs,js,cjs,ts}",
+        "tests/**/*.{ts,tsx,mjs,js}",
+        "vitest.config.ts",
+        "eslint.config.*"
+      ]
+    },
+    "apps/desktop": {
+      "entry": [
+        "src/main/index.ts!",
+        "src/main/cloud-media-hop.mjs!",
+        "src/preload/index.ts!",
+        "src/preload/plugin-panel.ts!",
+        "src/renderer/index.html!",
+        "src/renderer/src/main.tsx!",
+        "src/renderer/src/app-entry.tsx!",
+        "electron.vite.config.ts",
+        "**/*.{test,spec}.{ts,tsx}",
+        "tests/**/*.{ts,tsx}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mjs,js}!",
+        "tests/**/*.{ts,tsx}",
+        "electron.vite.config.ts"
+      ],
+      "paths": {
+        "@renderer/*": [
+          "./src/renderer/*"
+        ]
+      }
+    },
+    "apps/local-runtime": {
+      "entry": [
+        "src/entrypoints/electron.ts!",
+        "src/entrypoints/node.ts!",
+        "src/web-open/extract-worker.ts!",
+        "src/index.ts!",
+        "src/plugins/host-entry.mjs!",
+        "resources/js-repl/owned-cua.ts!",
+        "scripts/{copy-*,stage-*}.mjs!",
+        "scripts/configure-office-solutions.ts!",
+        "src/plugins/fixtures/**/*.mjs",
+        "scripts/**/!(copy-*|stage-*|configure-office-solutions).{ts,mjs,js}",
+        "**/*.{test,spec}.{ts,tsx}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mjs,js}!",
+        "resources/js-repl/owned-cua.ts!",
+        "scripts/**/*.{mjs,js,ts}!"
+      ]
+    },
+    "apps/*": {
+      "entry": [
+        "src/index.{ts,tsx,js,mjs}!",
+        "src/main.{ts,tsx,js,mjs}!",
+        "**/*.{test,spec}.{ts,tsx}",
+        "scripts/**/*.{mjs,js,ts}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mjs,js}!",
+        "scripts/**/*.{mjs,js,ts}"
+      ]
+    },
+    "packages/cua": {
+      "entry": [
+        "src/index.ts!",
+        "src/computer-entry.ts!",
+        "src/tinysky-alt.ts!",
+        "tests/type-contracts.ts",
+        "**/*.{test,spec}.{ts,tsx}"
+      ],
+      "project": ["src/**/*.{ts,tsx,js,mjs}!", "tests/**/*.{ts,tsx}"]
+    },
+    "packages/plugin-contracts": {
+      "entry": [
+        "src/index.ts!",
+        "src/host.ts!",
+        "**/*.{test,spec}.{ts,tsx}"
+      ],
+      "project": ["src/**/*.{ts,tsx,js,mjs}!"]
+    },
+    "packages/cua-repl": {
+      "entry": ["src/index.ts!", "resources/instructions/banner.js!", "**/*.{test,spec}.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx,js,mjs}!", "resources/instructions/banner.js!"]
+    },
+    "packages/browser-runtime": {
+      "entry": ["src/index.{ts,tsx,js,mjs}!", "src/service.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
+      "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
+    },
+    "packages/browser-desktop": {
+      "entry": ["src/index.{ts,tsx,js,mjs}!", "src/service.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
+      "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
+    },
+    "packages/sky": {
+      "entry": ["src/index.{ts,tsx,js,mjs}!", "src/service.ts!", "src/mac/action-driver-host.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
+      "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
+    },
+    "packages/configuration": {
+      "entry": ["src/index.{ts,tsx,js,mjs}!", "src/contracts.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
+      "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
+    },
+    "packages/plugin-runtime": {
+      "entry": ["src/index.{ts,tsx,js,mjs}!", "src/core.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
+      "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
+    },
+    "packages/onlyoffice-word": {
+      "entry": ["src/index.{ts,tsx,js,mjs}!", "src/sandbox/word-sandbox-worker.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
+      "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
+    },
+    "packages/onlyoffice-pdf": {
+      "entry": ["src/index.{ts,tsx,js,mjs}!", "src/sandbox/pdf-sandbox-worker.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
+      "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
+    },
+    "packages/onlyoffice-spreadsheet": {
+      "entry": ["src/index.{ts,tsx,js,mjs}!", "src/sandbox/spreadsheet-sandbox-worker.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
+      "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
+    },
+    "packages/*": {
+      "entry": [
+        "src/index.{ts,tsx,js,mjs}!",
+        "**/*.{test,spec}.{ts,tsx}",
+        "scripts/**/*.{mjs,js,ts}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mjs,js}!",
+        "scripts/**/*.{mjs,js,ts}"
+      ]
+    },
+    "plugins/*": {
+      "entry": [
+        "src/extension.{ts,tsx}!",
+        "src/index.{ts,tsx,js,mjs}!",
+        "src/catalog.{ts,tsx}!",
+        "src/runtime.{ts,tsx}!",
+        "src/remote.{ts,tsx}!",
+        "src/ui.{ts,tsx}!",
+        "src/presentation.{ts,tsx}!",
+        "src/examples.{ts,tsx}!",
+        "**/*.{test,spec}.{ts,tsx}",
+        "scripts/**/*.{mjs,js,ts}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mjs,js}!",
+        "scripts/**/*.{mjs,js,ts}"
+      ]
+    }
+  }
+}

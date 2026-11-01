@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url'
 import {matchesGlob as matchesPath} from 'node:path'
 export function createPlan({
   mode,
@@ -125,8 +126,6 @@ export function createPlan({
       pnpm(
         'exec',
         'jscpd',
-        '--config',
-        '.jscpd.json',
         '--output',
         `${out}/jscpd`,
         'apps',
@@ -157,7 +156,7 @@ export function createPlan({
               kind,
               '.',
               '--config',
-              'config/quality/gitleaks.toml',
+              fileURLToPath(new URL('../rules/gitleaks.toml',import.meta.url)),
               '--redact',
               '--report-format',
               'json',
