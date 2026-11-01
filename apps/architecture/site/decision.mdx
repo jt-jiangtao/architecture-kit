@@ -1,16 +1,14 @@
 import graph from './graph.json';
 
-<h1>{graph.decision.title}</h1>
-<p>{graph.mode === "preview" ? "工作区预览 · 基线 " : "提交版本 "}<code>{graph.revision.slice(0, 9)}</code></p>
-<p>{graph.decision.status}</p>
-{graph.decision.body.split(/\n\s*\n/).map((p,i) => p.startsWith('## ') ? <h2 key={i}>{p.slice(3)}</h2> : <p key={i}>{p}</p>)}
-
-## 公开 API
-
-<ul>{graph.apis.filter(api => graph.decision.affectedApis.includes(api.id)).map(api => <li key={api.id}><a href={api.sourceUrl}>{api.name}</a></li>)}</ul>
-
-## 测试证据
-
-<ul>{graph.decision.tests.map(t => <li key={t.sourceUrl}><a href={t.sourceUrl}>{t.name}</a></li>)}</ul>
+{graph.decisions.map(d => <section key={d.id} id={d.id}>
+  <h1>{d.title}</h1>
+  <p>{graph.mode === "preview" ? "工作区预览 · 基线 " : "提交版本 "}<code>{graph.revision.slice(0,9)}</code></p>
+  <p>{d.status}</p>
+  {d.body.split(/\n\s*\n/).map((p,i)=>p.startsWith("## ") ? <h2 key={i}>{p.slice(3)}</h2> : <p key={i}>{p}</p>)}
+  <h2>公开 API</h2>
+  <ul>{graph.apis.filter(a=>d.affectedApis.includes(a.id)).map(a=><li key={a.id}><a href={a.sourceUrl}>{a.name}</a></li>)}</ul>
+  <h2>测试证据</h2>
+  <ul>{d.tests.map(t=><li key={t.sourceUrl}><a href={t.sourceUrl}>{t.name}</a></li>)}</ul>
+</section>)}
 
 [返回模块](./index.mdx)

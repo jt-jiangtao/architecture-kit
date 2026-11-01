@@ -40,7 +40,9 @@ export async function watchWorkspace(
     if (!module) throw Error("Configure architectureModule first");
     return [
       ...c.inputPaths.filter((p) => !p.startsWith("profile:")),
-      dirname(module.manifest),
+      ...("scan" in module
+        ? module.scan.map((s) => dirname(s.manifest))
+        : [dirname(module.manifest)]),
     ].map((p) => resolve(c.root, p));
   }
   const watcher = watch(inputFiles(config), {

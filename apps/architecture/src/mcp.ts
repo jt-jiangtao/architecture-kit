@@ -27,23 +27,25 @@ export async function serveMcp(
         const api = graph.apis.find(
           (a) => (a.id === id || a.name === id) && (!file || a.file === file),
         );
+        const decisions = graph.decisions ?? [graph.decision];
         let value;
         if (name === "lookup_symbol" && api)
           value = {
             api,
             component: graph.component,
-            decision: graph.decision.affectedApis.includes(api.id)
-              ? graph.decision
-              : null,
+            decision:
+              decisions.find((d) => d.affectedApis.includes(api.id)) ?? null,
+            decisions: decisions.filter((d) => d.affectedApis.includes(api.id)),
           };
         if (name === "get_component" && graph.component.id === id)
           value = {
             component: graph.component,
             apis: graph.apis,
             decisionId: graph.decision.id,
+            decisions: decisions.map((d) => d.id),
+            relations: graph.relations ?? [],
           };
-        if (name === "get_decision" && graph.decision.id === id)
-          value = graph.decision;
+        if (name === "get_decision") value = decisions.find((d) => d.id === id);
         if (!value)
           return {
             isError: true,

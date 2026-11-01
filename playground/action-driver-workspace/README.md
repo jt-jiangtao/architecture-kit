@@ -1,20 +1,20 @@
-# Action-Driver 的本地 Harness 与运行时核心
+# 从源码标注构建 Action-Driver 架构工作区
 
-这里的两个验收目标是包根导出 `@action-driver/harness-local` 和 `@action-driver/agent-runtime`。工作区共用一份 LikeC4 模型。两个描述文件各自选择组件、公开符号、回溯性 ADR 与现有测试，并用不同的 storage.root 隔离当前版本。
+将两个 *.config.json 放在消费仓根目录。architectureModule.scan 的首项是当前模块的公开入口，其余入口补充跨包关系。Kit 从入口向上查找 package.json 和 tsconfig.json，读取 Git 工作区中的 TypeScript 声明与测试，以 TypeDoc 核对当前入口的真实公开导出。GitHub origin 用于生成固定提交链接。
 
-在 Action-Driver 副本根目录放置两个 *.config.json；将 model.c4、harness-local/ 和 agent-runtime/ 放在 config/architecture-kit/workspace/。安装消费仓锁定的依赖，并使用包含这些命令的 Architecture Kit。所有实现由 Kit 提供。
+| 注解 | 写在哪里 | 内容 |
+| --- | --- | --- |
+| `@architecture localHarness Local Harness` | 定义组件的公开声明 | ID 和标题。JSDoc 摘要是组件职责。其他公开声明用 `@architecture localHarness` 引用它。 |
+| `@uses agentRuntime 装配运行器` | 使用该组件的声明 | 目标组件 ID 和可选的关系说明。 |
+| `@decision provider-ownership 生命周期` | 作出此决策的声明 | 第一行是 ID 和标题，下一行起为决策正文。其他受影响声明用 `@decision provider-ownership` 引用。 |
+| `@verifies provider-ownership` | 测试调用上方的 JSDoc | Kit 从 it/test 的字符串字面量和调用位置生成测试链接。 |
+
+一个页面选一个主组件，可以关联多条决策。ID 拼错、重复定义、声明没有从扫描入口导出都会导致构建失败。模型输出在 site/model.c4，可独立供 LikeC4 CLI 和官方 MCP 使用。
 
 ```sh
-pnpm exec architecture-kit architecture init-docs --config harness-local.config.json
 pnpm exec architecture-kit architecture generate --config harness-local.config.json --json
-pnpm exec architecture-kit architecture generate --config agent-runtime.config.json --json
-pnpm exec architecture-kit architecture watch --config harness-local.config.json --port 4192
+pnpm exec architecture-kit architecture watch --config harness-local.config.json --port 4202
+pnpm exec architecture-kit architecture mcp --config agent-runtime.config.json
 ```
 
-另开终端运行以下命令可预览核心模块。更改接入配置的 storage.root 后，请重启对应的 watch 服务。
-
-```sh
-pnpm exec architecture-kit architecture watch --config agent-runtime.config.json --port 4193
-```
-
-Agent 客户端在消费仓工作目录启动 stdio 命令 `pnpm exec architecture-kit architecture mcp --config agent-runtime.config.json`，调用 `lookup_symbol` 并传入 `{"id":"LangGraphRunner"}`。本地 harness 使用自己的配置与 `createLocalHarness`。CLI 默认端口是 4192。共享网站部署及 HTTP MCP 网关需要由团队另行运行。
+两个模块使用独立存储目录，网页和 MCP 随所选配置读取同一成功轮次。消费仓的 docs/architecture/README.md 只需维护发现入口和启动命令。

@@ -20,8 +20,8 @@ import graph from './graph.json';
 
 ## 相关决策
 
-<a href="./decision.html">{graph.decision.title}</a>
+<ul>{graph.decisions.map(d => <li key={d.id}><a href={"./decision.html#"+d.id}>{d.title}</a></li>)}</ul>
 
 ## 测试证据
 
-<ul>{graph.decision.tests.map(t => <li key={t.sourceUrl}><a href={t.sourceUrl}>{t.name}</a></li>)}</ul>
+<ul>{graph.decisions.flatMap(d=>d.tests).map(t => <li key={t.sourceUrl}><a href={t.sourceUrl}>{t.name}</a></li>)}</ul>

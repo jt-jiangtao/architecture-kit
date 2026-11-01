@@ -68,17 +68,28 @@ export async function initDocs(config: ResolvedConfig, configFile: string) {
       .map(encodeURIComponent)
       .join("/");
   const cli = "pnpm exec architecture-kit architecture";
-  const args = " --config " + "'" + relative(config.root, configFile).replaceAll("'", "'\"'\"'") + "'";
+  const args =
+    " --config " +
+    "'" +
+    relative(config.root, configFile).replaceAll("'", "'\"'\"'") +
+    "'";
   const text = [
     "# 架构工作区",
-    "组件 ID 为 " + module.component + "。",
-    "[架构模型](" +
-      ref(module.model) +
-      ") · [架构决策](" +
-      ref(module.adr) +
-      ") · [源码入口](" +
-      ref(module.entry) +
-      ")",
+    ...("scan" in module
+      ? [
+          "组件、关系、决策和验证依据从源码及测试注释生成。",
+          ...module.scan.map((s) => "[" + s.entry + "](" + ref(s.entry) + ")"),
+        ]
+      : [
+          "组件 ID 为 " + module.component + "。",
+          "[架构模型](" +
+            ref(module.model) +
+            ") · [架构决策](" +
+            ref(module.adr) +
+            ") · [源码入口](" +
+            ref(module.entry) +
+            ")",
+        ]),
     "在仓库根目录运行以下命令。generate 发布固定提交版本，watch 提供本机自动刷新预览，mcp 通过标准输入输出提供只读查询。",
     ...["generate", "watch", "mcp"].map(
       (cmd) => "    " + cli + " " + cmd + args,

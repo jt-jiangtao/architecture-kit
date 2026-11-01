@@ -5,5 +5,10 @@
     "output": "output"
   },
   "profile": "action-driver",
-  "architectureModule": "config/architecture-kit/workspace/harness-local/module.json"
+  "architectureModule": {
+    "scan": [
+      "packages/harness-local/src/index.ts",
+      "packages/agent-runtime/src/index.ts"
+    ]
+  }
 }

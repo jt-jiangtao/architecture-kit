@@ -56,7 +56,7 @@ export interface CleanupConfig {
   }
   hooks: Record<HookPhase, HookConfig[]>
 }
-export interface ArchitectureModule {
+export interface LegacyModule {
   symbols: string[]
   manifest: string
   entry: string
@@ -67,6 +67,8 @@ export interface ArchitectureModule {
   adr: string
   repository: string
 }
+export interface ScanEntry { manifest:string; entry:string; tsconfig:string }
+export type ArchitectureModule = LegacyModule | (ScanEntry & { scan:ScanEntry[] })
 export interface ArchitectureConfig {
   module?: ArchitectureModule
   enabled: boolean
@@ -557,17 +559,87 @@ export async function loadConfig(
         outputs: choices(c.outputs, 'architecture.outputs', outputs)
       }
       if (architectureModule !== undefined) {
-        const descriptor = await inputFile(localPath(architectureModule, 'architectureModule'), 'architectureModule')
-        const m = fields(await readJson(resolve(root, descriptor)), descriptor,
-          ['manifest', 'entry', 'tsconfig', 'model', 'component', 'view', 'adr', 'repository', 'symbols'])
-        const file = (key: string) => inputFile(localPath(m[key], key), key)
-        const repository = string(m.repository, 'repository')
-        if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/.test(repository))
-          invalid('repository', 'expected HTTPS GitHub repository URL')
-        flows.architecture.module = {
-          symbols: strings(m.symbols, 'symbols'), manifest: await file('manifest'), entry: await file('entry'), tsconfig: await file('tsconfig'),
-          model: await file('model'), adr: await file('adr'), component: string(m.component, 'component'),
-          view: string(m.view, 'view'), repository
+        if (
+          typeof architectureModule === 'object' &&
+          architectureModule !== null
+        ) {
+          const { scan } = fields(architectureModule, 'architectureModule', [
+            'scan'
+          ])
+          const entries: ScanEntry[] = []
+          for (const value of strings(scan, 'architectureModule.scan')) {
+            const entry = await inputFile(
+              localPath(value, 'scan entry'),
+              'scan entry'
+            )
+            let directory = dirname(entry)
+            while (
+              !(
+                await stat(join(root, directory, 'package.json')).catch(
+                  () => null
+                )
+              )?.isFile()
+            ) {
+              if (directory === '.')
+                invalid('scan entry', 'missing package.json for ' + entry)
+              directory = dirname(directory)
+            }
+            entries.push({
+              entry,
+              manifest: await inputFile(
+                join(directory, 'package.json'),
+                'manifest'
+              ),
+              tsconfig: await inputFile(
+                join(directory, 'tsconfig.json'),
+                'tsconfig'
+              )
+            })
+          }
+          if (
+            !entries.length ||
+            new Set(entries.map((e) => e.manifest)).size !== entries.length
+          )
+            invalid(
+              'architectureModule.scan',
+              'expected distinct package entries'
+            )
+          flows.architecture.module = { ...entries[0]!, scan: entries }
+        } else {
+          const descriptor = await inputFile(
+            localPath(architectureModule, 'architectureModule'),
+            'architectureModule'
+          )
+          const m = fields(
+            await readJson(resolve(root, descriptor)),
+            descriptor,
+            [
+              'manifest',
+              'entry',
+              'tsconfig',
+              'model',
+              'component',
+              'view',
+              'adr',
+              'repository',
+              'symbols'
+            ]
+          )
+          const file = (key: string) => inputFile(localPath(m[key], key), key)
+          const repository = string(m.repository, 'repository')
+          if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/.test(repository))
+            invalid('repository', 'expected HTTPS GitHub repository URL')
+          flows.architecture.module = {
+            symbols: strings(m.symbols, 'symbols'),
+            manifest: await file('manifest'),
+            entry: await file('entry'),
+            tsconfig: await file('tsconfig'),
+            model: await file('model'),
+            adr: await file('adr'),
+            component: string(m.component, 'component'),
+            view: string(m.view, 'view'),
+            repository
+          }
         }
       }
     }

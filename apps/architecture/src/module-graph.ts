@@ -1,10 +1,38 @@
 import { execFileSync } from "node:child_process";
 import { readFile, realpath } from "node:fs/promises";
-import { join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { LikeC4 } from "likec4";
-import { Application, normalizePath } from "typedoc";
+import { Application, OptionDefaults, normalizePath } from "typedoc";
 import { parse } from "yaml";
+import { annotations } from "./annotations.js";
 import type { ArchitectureModule } from "../../../packages/config/src/index.js";
+
+async function publicExports(
+  root: string,
+  config: Pick<ArchitectureModule, "entry" | "tsconfig">,
+) {
+  const app = await Application.bootstrap({
+    entryPoints: [join(root, config.entry)],
+    tsconfig: join(root, config.tsconfig),
+    basePath: root,
+    blockTags: [
+      ...OptionDefaults.blockTags,
+      "@architecture",
+      "@decision",
+      "@uses",
+      "@verifies",
+    ],
+    disableGit: true,
+    sourceLinkTemplate: "{path}#L{line}",
+    skipErrorChecking: true,
+  });
+  const project = await app.convert();
+  if (!project || app.logger.hasErrors())
+    throw Error("TypeDoc failed for " + config.entry);
+  return (
+    app.serializer.projectToObject(project, normalizePath(root)).children ?? []
+  );
+}
 
 export async function moduleGraph(
   root: string,
@@ -40,13 +68,27 @@ export async function moduleGraph(
     }
     return text;
   }
+  let repository: string;
+  if ("scan" in config) {
+    const remote = execFileSync("git", ["remote", "get-url", "origin"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+    const match =
+      /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([\w.-]+\/[\w.-]+?)\/?(?:\.git)?$/.exec(
+        remote,
+      );
+    if (!match)
+      throw Error("Architecture source links require a GitHub origin");
+    repository = "https://github.com/" + match[1];
+  } else repository = config.repository;
   const url = (file: string, line: number) =>
     previewSources
       ? "./sources/" +
         file.split("/").map(encodeURIComponent).join("/") +
         ".html#L" +
         line
-      : config.repository +
+      : repository +
         "/blob/" +
         revision +
         "/" +
@@ -56,6 +98,91 @@ export async function moduleGraph(
   const manifest = JSON.parse(await source(config.manifest));
   await source(config.entry);
   await source(config.tsconfig);
+  if ("scan" in config) {
+    const extracted = await annotations(
+      root,
+      config.scan,
+      source,
+      !previewSources,
+    );
+    const members = extracted.members.filter(
+      (m) => m.packageRoot === dirname(config.manifest),
+    );
+    const owners = new Set(members.map((m) => m.component));
+    if (owners.size !== 1)
+      throw Error(
+        config.entry + ": expected one primary @architecture component",
+      );
+    const owner = extracted.components.find((c) => owners.has(c.id))!;
+    const component = { ...owner, source: owner.file, view: "architecture" };
+    const exports = await publicExports(root, config);
+    const matched = new Set<(typeof members)[number]>();
+    const apis = exports
+      .flatMap((r) => {
+        const loc = r.sources?.[0];
+        const member = members.find(
+          (m) =>
+            m.file === loc?.fileName &&
+            m.line === loc.line &&
+            m.character === loc.character,
+        );
+        if (!member || !loc) return [];
+        matched.add(member);
+        return [
+          {
+            id: manifest.name + "#" + r.name,
+            name: r.name,
+            component: owner.id,
+            file: member.file,
+            line: loc.line,
+            sourceUrl: url(member.file, loc.line),
+            decisionIds: member.decisions,
+          },
+        ];
+      })
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    for (const m of members)
+      if (!matched.has(m))
+        throw Error(
+          m.file +
+            ":" +
+            m.line +
+            " annotated declaration is not a public export of " +
+            config.entry,
+        );
+    const decisions = extracted.decisions
+      .filter((d) => apis.some((a) => a.decisionIds.includes(d.id)))
+      .map((d) => ({
+        id: d.id,
+        title: d.title,
+        body: d.body,
+        status: "documented",
+        source: d.file,
+        line: d.line,
+        affectedApis: apis
+          .filter((a) => a.decisionIds.includes(d.id))
+          .map((a) => a.id),
+        tests: extracted.tests
+          .filter((t) => t.id === d.id)
+          .map((t) => ({ ...t, sourceUrl: url(t.file, t.line) })),
+      }));
+    const decision = decisions[0];
+    if (!decision)
+      throw Error(config.entry + ": no @decision for primary component");
+    return {
+      schemaVersion: 1,
+      mode: previewSources ? "preview" : "commit",
+      revision,
+      package: String(manifest.name),
+      component,
+      apis,
+      decision,
+      decisions,
+      components: extracted.components,
+      relations: extracted.relations,
+      modelDsl: extracted.dsl,
+    };
+  }
   const workspace = await LikeC4.fromSource(
     await readFile(join(root, config.model), "utf8"),
     { throwIfInvalid: true, logger: false },
@@ -83,19 +210,7 @@ export async function moduleGraph(
   } finally {
     await workspace.dispose();
   }
-  const app = await Application.bootstrap({
-    entryPoints: [join(root, config.entry)],
-    tsconfig: join(root, config.tsconfig),
-    basePath: root,
-    disableGit: true,
-    sourceLinkTemplate: "{path}#L{line}",
-    skipErrorChecking: true,
-  });
-  const project = await app.convert();
-  if (!project || app.logger.hasErrors())
-    throw Error("TypeDoc failed for " + config.entry);
-  const reflections =
-    app.serializer.projectToObject(project, normalizePath(root)).children ?? [];
+  const reflections = await publicExports(root, config);
   const apis = [];
   if (
     !config.symbols.length ||
@@ -180,6 +295,10 @@ export async function moduleGraph(
     component,
     apis,
     decision,
+    decisions: [decision],
+    modelDsl: undefined,
+    relations: undefined,
+    components: undefined,
   };
 }
 

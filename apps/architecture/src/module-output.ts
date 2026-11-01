@@ -33,9 +33,13 @@ export async function publishModule(
     symbol: api.name,
     component: api.component,
     module: "site/index.html#" + encodeURIComponent(api.name),
-    decisions: graph.decision.affectedApis.includes(api.id)
-      ? ["site/decision.html"]
-      : [],
+    decisions: graph.decisions
+      .filter((d) => d.affectedApis.includes(api.id))
+      .map((d) =>
+        graph.modelDsl
+          ? "site/decision.html#" + encodeURIComponent(d.id)
+          : "site/decision.html",
+      ),
   }));
   const stage = await mkdtemp(join(tmpdir(), "architecture-module-"));
   try {
@@ -60,7 +64,9 @@ export async function publishModule(
     }
     const modelDir = join(stage, "model");
     await mkdir(modelDir);
-    await cp(join(root, config.model), join(modelDir, "model.c4"));
+    if ("model" in config)
+      await cp(join(root, config.model), join(modelDir, "model.c4"));
+    else await writeFile(join(modelDir, "model.c4"), graph.modelDsl!);
     const json = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
     await writeFile(join(pages, "graph.json"), json(graph));
     const options = { cwd: stage, signal, maxBuffer: 8_000_000 };
@@ -86,9 +92,13 @@ export async function publishModule(
       json(graph),
     );
     await writeFile(join(stage, "site", "source-index.json"), json(index));
+    if (graph.modelDsl)
+      await writeFile(join(stage, "site", "model.c4"), graph.modelDsl);
     if (sources) {
       const linked = new Set(
-        [...graph.apis, ...graph.decision.tests].map((row) => row.file),
+        [...graph.apis, ...graph.decisions.flatMap((d) => d.tests)].map(
+          (row) => row.file,
+        ),
       );
       for (const file of linked) {
         const page = join(stage, "site", "sources", file + ".html");
@@ -131,15 +141,19 @@ export async function publishModule(
       ")";
     await writeFile(
       join(output, "decision.md"),
-      [
-        "# " + graph.decision.title,
-        graph.decision.body,
-        graph.apis
-          .filter((a) => graph.decision.affectedApis.includes(a.id))
-          .map(link)
-          .join("\n"),
-        graph.decision.tests.map(link).join("\n"),
-      ].join("\n\n") + "\n",
+      graph.decisions
+        .map((d) =>
+          [
+            "# " + d.title,
+            d.body,
+            graph.apis
+              .filter((a) => d.affectedApis.includes(a.id))
+              .map(link)
+              .join("\n"),
+            d.tests.map(link).join("\n"),
+          ].join("\n\n"),
+        )
+        .join("\n\n") + "\n",
       { flag: "wx" },
     );
     await writeFile(
@@ -148,7 +162,7 @@ export async function publishModule(
         "# " + graph.component.title,
         graph.component.description,
         graph.apis.map(link).join("\n"),
-        "[" + graph.decision.title + "](decision.md)",
+        graph.decisions.map((d) => "[" + d.title + "](decision.md)").join("\n"),
       ].join("\n\n") + "\n",
       { flag: "wx" },
     );
