@@ -27,9 +27,10 @@
     "evidence*.dvc",
     "artifacts/*.dvc"
   ],
-  "ignoreBinaries": [],
   "workspaces": {
     ".": {
+      // Host CLIs for Codex configuration, behavior evals, and Ripwire impact analysis.
+      "ignoreBinaries": ["codex", "ripwire"],
       "entry": [
         "scripts/**/*.{mjs,js,cjs,ts}",
         "vitest.config.ts",

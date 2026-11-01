@@ -60,3 +60,23 @@ for (const [from, to, specifier] of [
       await rm(root, { recursive: true, force: true })
     }
   })
+
+test('boundary check accepts a workspace without product roots and still checks a partial workspace', async (t) => {
+  const { executeCommand } = await import('../profiles/action-driver/local-quality/native.mjs')
+  const root = await mkdtemp(join(tmpdir(), 'ad-partial-boundary-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const run = () => executeCommand(['pnpm', 'check:boundaries'], root)
+  const empty = run()
+  assert.equal(empty.code, 0)
+  assert.match(empty.stdout, /No product source roots/)
+  const src = join(root, 'apps/local-runtime/src')
+  for (const layer of ['application', 'composition'])
+    await mkdir(join(src, layer), { recursive: true })
+  await writeFile(join(src, 'application/tasks.ts'), "import '../composition/service'")
+  await writeFile(join(src, 'composition/service.ts'), 'export const value = 1')
+  const violation = run()
+  assert.notEqual(violation.code, 0)
+  assert.match(violation.stdout + violation.stderr, /application-no-composition/)
+  await writeFile(join(root, 'plugins'), 'not a directory')
+  assert.throws(run, { code: 'ENOTDIR' })
+})

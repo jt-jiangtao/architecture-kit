@@ -25,10 +25,10 @@ try {
     operation === 'hard-rules'
   ) {
     const { executeCommand } = await import('./local-quality/native.mjs')
-    const { boundaryCommand, toolCommand } = await import('./toolchain.mjs')
+    const { toolCommand } = await import('./toolchain.mjs')
     const command =
       operation === 'boundaries'
-        ? boundaryCommand(root, args)
+        ? ['pnpm', 'check:boundaries', ...args]
         : operation === 'dependencies'
           ? toolCommand('syncpack', args.length ? args : ['lint'])
           : operation === 'hard-rules'

@@ -9,7 +9,10 @@ import { spawnSync } from 'node:child_process'
 export const hash = (value) => createHash('sha256').update(value).digest('hex')
 export function executeCommand(command, repo, env = process.env) {
   if(command[0]==='pnpm' && command[1]==='exec' && ['knip','syncpack','jscpd','depcruise','eslint','prettier'].includes(command[2])) command=toolCommand(command[2],command.slice(3))
-  if(command[0]==='pnpm' && command[1]==='check:boundaries') command=boundaryCommand(repo,command.slice(2))
+  if(command[0]==='pnpm' && command[1]==='check:boundaries') {
+    command = boundaryCommand(repo, command.slice(2))
+    if (!command) return { code: 0, stdout: 'No product source roots to check.\n', stderr: '', signal: null }
+  }
   if(command[0]==='pnpm' && command[1]==='docs:links') command=['lychee','--offline','--include-fragments','--root-dir','.','README.md','AGENTS.md','docs']
   if(command[0]==='architecture-kit:check-target')command=[process.execPath,path.join(import.meta.dirname,'check-target.mjs'),...command.slice(1)]
   if(['semgrep','lychee','gitleaks','osv-scanner'].includes(command[0]))command=[nativeTool(command[0]),...command.slice(1)]

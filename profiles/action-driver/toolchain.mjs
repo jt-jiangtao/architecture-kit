@@ -46,17 +46,24 @@ export function toolCommand(tool, args) {
 }
 export function boundaryCommand(repo, args = []) {
   const roots = ['apps', 'packages', 'plugins']
-    .flatMap((group) =>
-      fs
-        .readdirSync(path.join(repo, group), { withFileTypes: true })
+    .flatMap((group) => {
+      let entries
+      try {
+        entries = fs.readdirSync(path.join(repo, group), { withFileTypes: true })
+      } catch (error) {
+        if (error.code === 'ENOENT') return []
+        throw error
+      }
+      return entries
         .filter(
           (ent) =>
             ent.isDirectory() &&
             fs.existsSync(path.join(repo, group, ent.name, 'src'))
         )
         .map((ent) => path.join(group, ent.name, 'src'))
-    )
+    })
     .sort()
+  if (!roots.length && !args.length) return null
   return toolCommand('depcruise', [
     '--config',
     path.join(import.meta.dirname, 'rules/dependency-cruiser.config.cjs'),
