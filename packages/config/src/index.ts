@@ -56,7 +56,19 @@ export interface CleanupConfig {
   }
   hooks: Record<HookPhase, HookConfig[]>
 }
+export interface ArchitectureModule {
+  symbols: string[]
+  manifest: string
+  entry: string
+  tsconfig: string
+  model: string
+  component: string
+  view: string
+  adr: string
+  repository: string
+}
 export interface ArchitectureConfig {
+  module?: ArchitectureModule
   enabled: boolean
   outputs: (typeof outputs)[number][]
 }
@@ -239,7 +251,7 @@ async function parseRoot(file: string) {
     await readJson(await confined(root, basename(file))),
     file,
     ['schemaVersion', 'storage'],
-    ['flows', 'profile', 'allowApply']
+    ['flows', 'profile', 'allowApply', 'architectureModule']
   )
   if (raw.schemaVersion !== 1) invalid('schemaVersion', 'expected 1')
   const paths = fields(raw.storage, 'storage', ['root', 'output'])
@@ -318,6 +330,7 @@ async function parseRoot(file: string) {
     root,
     storage,
     flowFiles,
+    architectureModule: raw.architectureModule,
     inputPaths,
     inputFile,
     profile,
@@ -516,7 +529,8 @@ export async function loadConfig(
     inputPaths,
     inputFile,
     profile,
-    allowApply
+    allowApply,
+    architectureModule
   } = await parseRoot(file)
   const flows: ResolvedConfig['flows'] = {}
   for (const name of only ? [only] : flowNames) {
@@ -536,6 +550,20 @@ export async function loadConfig(
       flows.architecture = {
         enabled: flag(c.enabled, 'architecture.enabled'),
         outputs: choices(c.outputs, 'architecture.outputs', outputs)
+      }
+      if (architectureModule !== undefined) {
+        const descriptor = await inputFile(localPath(architectureModule, 'architectureModule'), 'architectureModule')
+        const m = fields(await readJson(resolve(root, descriptor)), descriptor,
+          ['manifest', 'entry', 'tsconfig', 'model', 'component', 'view', 'adr', 'repository', 'symbols'])
+        const file = (key: string) => inputFile(localPath(m[key], key), key)
+        const repository = string(m.repository, 'repository')
+        if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/.test(repository))
+          invalid('repository', 'expected HTTPS GitHub repository URL')
+        flows.architecture.module = {
+          symbols: strings(m.symbols, 'symbols'), manifest: await file('manifest'), entry: await file('entry'), tsconfig: await file('tsconfig'),
+          model: await file('model'), adr: await file('adr'), component: string(m.component, 'component'),
+          view: string(m.view, 'view'), repository
+        }
       }
     }
     if (only && !flows[name]?.enabled) invalid(name, 'flow disabled')

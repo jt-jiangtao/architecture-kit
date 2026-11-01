@@ -452,6 +452,12 @@ export async function main(argv: string[]): Promise<number> {
         throw new Error('Architecture flow disabled')
       const facts = await loadFacts()
       ;({ result, report } = generate(facts, config.flows.architecture.outputs))
+      if (config.flows.architecture.module) {
+        const { publishModule } = await import('../../architecture/src/module-output.js')
+        const moduleArtifacts = await publishModule(root, config.flows.architecture.module, round.output, controller.signal)
+        result = { ...result as object, moduleArtifacts }
+        report += '\n[模块网站](' + moduleArtifacts.site + ')\n'
+      }
       metadata.inputDigest = facts.inputDigest
     }
     if (controller.signal.aborted) throw new Error('Interrupted')

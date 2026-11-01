@@ -1,0 +1,11 @@
+{
+  "manifest": "packages/harness-cloud/package.json",
+  "entry": "packages/harness-cloud/src/index.ts",
+  "tsconfig": "packages/harness-cloud/tsconfig.json",
+  "model": "config/architecture-kit/harness/model.c4",
+  "component": "cloudHarness.dispatcher",
+  "view": "dispatchAuthority",
+  "symbols": ["ActionJobDispatcher", "ActionDispatchStore"],
+  "adr": "config/architecture-kit/harness/dispatch-authority.md",
+  "repository": "https://github.com/jt-jiangtao/action-driver"
+}

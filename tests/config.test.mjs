@@ -140,3 +140,13 @@ test('storage overlap respects the existing directory spelling on case-insensiti
   await json(cleanup, config)
   await assert.rejects(loadConfig(file, 'cleanup'), /storage.root/)
 })
+
+test('cleanup and optimize can load even when the architecture module descriptor is absent', async t => {
+  const { file } = await setup(t)
+  const before = await read(file)
+  await json(file, { ...before, architectureModule: 'missing-module.json' })
+  for (const flow of ['cleanup', 'optimize']) {
+    assert.equal((await loadConfig(file, flow)).flows[flow].enabled, true)
+  }
+  await assert.rejects(loadConfig(file, 'architecture'), /missing-module/)
+})

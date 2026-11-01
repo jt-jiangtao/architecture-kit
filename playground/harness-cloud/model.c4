@@ -1,0 +1,21 @@
+specification {
+  element system
+  element component
+}
+model {
+  cloudHarness = system 'Cloud Harness' {
+    dispatcher = component 'Action Job Dispatcher' {
+      description '派发云端会话任务，在异步准备和历史查询后重新核对运行实例与所有者。'
+    }
+    store = component 'Action Dispatch Store' {
+      description '提供当前运行实例、任务状态与所有者代数。'
+    }
+    dispatcher -> store '读取当前派发权限并提交状态'
+  }
+}
+views {
+  view dispatchAuthority of cloudHarness {
+    title 'Harness 任务派发权限'
+    include *
+  }
+}

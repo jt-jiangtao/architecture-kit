@@ -1,0 +1,15 @@
+import graph from './graph.json';
+
+<h1>{graph.decision.title}</h1>
+<p>{graph.decision.status}</p>
+{graph.decision.body.split(/\n\s*\n/).map((p,i) => p.startsWith('## ') ? <h2 key={i}>{p.slice(3)}</h2> : <p key={i}>{p}</p>)}
+
+## 公开 API
+
+<ul>{graph.apis.filter(api => graph.decision.affectedApis.includes(api.id)).map(api => <li key={api.id}><a href={api.sourceUrl}>{api.name}</a></li>)}</ul>
+
+## 测试证据
+
+<ul>{graph.decision.tests.map(t => <li key={t.sourceUrl}><a href={t.sourceUrl}>{t.name}</a></li>)}</ul>
+
+[返回模块](./index.mdx)

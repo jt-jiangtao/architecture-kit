@@ -1,0 +1,26 @@
+import { BrowserOnly } from '@rspress/core/runtime';
+import graph from './graph.json';
+
+<h1>{graph.component.title}</h1>
+<p><code>{graph.package}</code> · {graph.component.description}</p>
+
+## 架构视图
+
+<BrowserOnly fallback={<p>正在加载架构图…</p>}>
+  {async () => {
+    const { LikeC4View } = await import('../Diagram.jsx');
+    return <LikeC4View viewId={graph.component.view} controls pannable zoomable background="dots" injectFontCss={false} />;
+  }}
+</BrowserOnly>
+
+## 公开 API
+
+<ul>{graph.apis.map(api => <li key={api.id} id={api.name}><a href={api.sourceUrl}>{api.name}</a> · {api.file} 第 {api.line} 行</li>)}</ul>
+
+## 相关决策
+
+<a href="./decision.html">{graph.decision.title}</a>
+
+## 测试证据
+
+<ul>{graph.decision.tests.map(t => <li key={t.sourceUrl}><a href={t.sourceUrl}>{t.name}</a></li>)}</ul>
