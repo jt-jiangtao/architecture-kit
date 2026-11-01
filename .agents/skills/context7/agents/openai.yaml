@@ -1,0 +1,4 @@
+interface:
+  display_name: "Context7"
+  short_description: "Version-specific external library documentation"
+  default_prompt: "Use $context7 to verify the installed library version before changing this API."

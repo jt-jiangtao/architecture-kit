@@ -1,0 +1,57 @@
+{
+  "name": "architecture-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Code-native architecture knowledge compiler for humans and coding agents",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.20.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "skills:list": "skills list",
+    "skills:check": "skills check",
+    "skills:restore": "skills experimental_install",
+    "skills:update": "skills update -p",
+    "codex:configure": "node scripts/codex-development.mjs configure",
+    "codex:check": "node scripts/codex-development.mjs check",
+    "codex:capture": "node scripts/codex-development.mjs capture",
+    "agent-tools:status": "node scripts/agent-development-tools.mjs status",
+    "agent-tools:install": "node scripts/agent-development-tools.mjs install",
+    "ripwire-project": "node scripts/agent-ripwire.mjs",
+    "eval:codex-development": "node evals/codex-development/run.mjs",
+    "test": "node --test tests/*.test.mjs tests/profile/legacy/*.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "skills": "1.7.4"
+  },
+  "packageManager": "pnpm@12.4.1",
+  "bin": {
+    "architecture-kit": "./bin/architecture-kit.mjs"
+  },
+  "exports": {
+    ".": "./dist/src/index.js",
+    "./profiles/action-driver/*": "./profiles/action-driver/*"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "profiles",
+    "skills"
+  ],
+  "dependencies": {
+    "@ast-grep/cli": "0.51.0",
+    "dependency-cruiser": "16.10.4",
+    "eslint": "9.39.5",
+    "eslint-plugin-unused-imports": "4.4.1",
+    "jscpd": "5.4.2",
+    "knip": "6.43.0",
+    "prettier": "3.7.4",
+    "syncpack": "15.3.3",
+    "typescript": "5.9.3",
+    "yaml": "2.9.1"
+  }
+}

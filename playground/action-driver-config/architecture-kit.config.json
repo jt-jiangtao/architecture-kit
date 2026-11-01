@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "storage": {
+    "root": ".architecture-kit",
+    "output": "output"
+  },
+  "flows": {
+    "cleanup": "./config/architecture-kit/cleanup.json",
+    "architecture": "./config/architecture-kit/architecture.json"
+  }
+}

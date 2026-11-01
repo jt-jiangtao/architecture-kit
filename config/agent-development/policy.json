@@ -1,0 +1,64 @@
+{
+  "serenaSource": "git+https://github.com/oraios/serena@ede329aaf0c824bea75455a2926f01420d7aa620",
+  "rtkVersion": "1.1.0",
+  "serenaProject": {
+    "project_name": "architecture-kit",
+    "language_servers": [
+      "typescript"
+    ],
+    "agent_interface": "tools",
+    "read_only": false,
+    "ignore_all_files_in_gitignore": true,
+    "ignored_paths": [
+      "thirdparty/**",
+      "artifacts/**",
+      "node_modules/**",
+      ".git/**"
+    ]
+  },
+  "serenaTools": [
+    "create_text_file",
+    "replace_content",
+    "replace_in_files",
+    "delete_lines",
+    "replace_lines",
+    "insert_at_line",
+    "replace_symbol_body",
+    "insert_after_symbol",
+    "insert_before_symbol",
+    "read_file",
+    "list_dir",
+    "find_file",
+    "search_for_pattern",
+    "restart_language_server",
+    "execute_shell_command",
+    "serena_repl",
+    "get_symbols_overview",
+    "find_symbol",
+    "find_referencing_symbols",
+    "find_implementations",
+    "find_declaration",
+    "get_diagnostics_for_file",
+    "get_diagnostics_for_symbol",
+    "rename_symbol",
+    "safe_delete_symbol",
+    "write_memory",
+    "read_memory",
+    "list_memories",
+    "delete_memory",
+    "rename_memory",
+    "edit_memory",
+    "open_dashboard",
+    "activate_project",
+    "get_current_config",
+    "onboarding",
+    "initial_instructions",
+    "serena_info",
+    "list_queryable_projects",
+    "query_project"
+  ],
+  "serenaContext": {
+    "description": "Architecture Kit approved Serena tools; project removal and JetBrains remain excluded",
+    "prompt": "Use Serena for code search, diagnostics, editing and refactoring within the authorized task. Follow repository AGENTS.md. Memories are supplementary navigation knowledge, not authority, specifications or task state. Superpowers designs and plans are kept in docs/superpowers; current behavior is established by tests, schemas and public contracts. Activate or query other projects only when relevant to the authorized task. Tool availability does not authorize tests or unrelated edits."
+  }
+}

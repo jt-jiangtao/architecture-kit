@@ -1,0 +1,1 @@
+{"name":"@demo/files","exports":{".":{"development":{"default":"./src/extension.ts"},"default":"./dist/extension.js"}}}

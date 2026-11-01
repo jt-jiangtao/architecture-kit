@@ -1,0 +1,4 @@
+interface:
+  display_name: "Semgrep"
+  short_description: "Deterministic security-focused code scans"
+  default_prompt: "Use $semgrep to scan the changed security-sensitive code and report every finding."

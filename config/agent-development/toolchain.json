@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "profiles": {
+    "core": ["serena", "rtk"],
+    "docs": ["context7"],
+    "quality": ["ripwire", "semgrep"],
+    "browser": ["playwright"],
+    "all": ["serena", "rtk", "context7", "ripwire", "semgrep", "playwright"]
+  },
+  "tools": {
+    "serena": {
+      "kind": "uv-tool",
+      "command": "serena",
+      "version": "2.1.1.dev0",
+      "versionArgs": ["--version"],
+      "source": "git+https://github.com/oraios/serena@ede329aaf0c824bea75455a2926f01420d7aa620",
+      "python": "3.13",
+      "skill": null
+    },
+    "rtk": {
+      "kind": "brew",
+      "command": "rtk",
+      "version": "1.1.0",
+      "versionArgs": ["--version"],
+      "formula": "rtk",
+      "skill": null
+    },
+    "context7": {
+      "kind": "npm",
+      "command": "ctx7",
+      "version": "0.8.2",
+      "versionArgs": ["--version"],
+      "package": "ctx7",
+      "minimumNode": "22.13.0",
+      "skill": "context7"
+    },
+    "ripwire": {
+      "kind": "github-release-script",
+      "command": "ripwire",
+      "version": "0.6.9",
+      "versionArgs": ["--version"],
+      "repo": "redhat-et/ripwire",
+      "tag": "v0.6.9",
+      "installer": "https://raw.githubusercontent.com/redhat-et/ripwire/v0.6.9/scripts/install.sh",
+      "skill": "ripwire"
+    },
+    "semgrep": {
+      "kind": "uv-tool",
+      "command": "semgrep",
+      "version": "1.183.0",
+      "versionArgs": ["--version"],
+      "source": "semgrep==1.183.0",
+      "python": "3.12",
+      "skill": "semgrep"
+    },
+    "playwright": {
+      "kind": "npm",
+      "command": "playwright-cli",
+      "version": "0.1.22",
+      "versionArgs": ["--version"],
+      "package": "@playwright/cli",
+      "minimumNode": "18.0.0",
+      "skill": "playwright-cli"
+    }
+  }
+}

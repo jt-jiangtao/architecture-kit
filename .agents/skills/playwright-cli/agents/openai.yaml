@@ -1,0 +1,4 @@
+interface:
+  display_name: "Playwright CLI"
+  short_description: "Fallback browser automation and UI diagnostics"
+  default_prompt: "Use $playwright-cli to investigate this UI or performance issue with Playwright."

@@ -1,0 +1,48 @@
+{
+  "enabled": true,
+  "reportPackages": [
+    "@action-driver/plugin-sdk",
+    "@action-driver/plugin-contracts"
+  ],
+  "debt": "./config/quality/cleanup-debt.json",
+  "allowApply": false,
+  "tools": {
+    "knip": {
+      "enabled": true,
+      "required": true,
+      "configFile": "./knip.jsonc",
+      "modes": [
+        "default",
+        "production"
+      ]
+    },
+    "actionDriver": {
+      "enabled": true,
+      "required": true
+    }
+  },
+  "hooks": {
+    "check.start": [
+      {
+        "id": "validate-config",
+        "required": true,
+        "script": "./scripts/validate-config.mjs"
+      }
+    ],
+    "check.end": [
+      {
+        "id": "check-boundaries",
+        "required": true,
+        "command": [
+          "pnpm",
+          "exec",
+          "architecture-kit",
+          "cleanup",
+          "boundaries"
+        ]
+      }
+    ],
+    "delete.start": [],
+    "delete.end": []
+  }
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "small-fix",
+    "prompt": "已授权：修复 math.mjs 的 add，让加法正确。只改 math.mjs，复用现有测试，完成后自行验证并交付。",
+    "files": {"math.mjs": "export const add = (a, b) => a - b;\n", "check.mjs": "import assert from 'node:assert/strict'; import {add} from './math.mjs'; assert.equal(add(2,3),5); assert.equal(add(-2,3),1);\n"},
+    "allowedChanges": ["math.mjs"]
+  },
+  {
+    "id": "cross-module-wiring",
+    "prompt": "已授权：修复 composition.mjs，把调用者注入的 clock 接入 service.mjs，不改接口，不增加全局依赖。只改 composition.mjs，运行 check.mjs 验证后交付。",
+    "files": {"service.mjs": "export const createService = clock => ({ now: () => clock.now() });\n", "composition.mjs": "import {createService} from './service.mjs'; export const compose = clock => createService({now: () => 0});\n", "check.mjs": "import assert from 'node:assert/strict'; import {compose} from './composition.mjs'; assert.equal(compose({now:()=>123}).now(),123); assert.equal(compose({now:()=>456}).now(),456);\n"},
+    "allowedChanges": ["composition.mjs"]
+  },
+  {
+    "id": "failure-investigation",
+    "prompt": "已授权：check.mjs 失败，请定位根因并修复 status.mjs。契约是只有 status 为 ready 才返回 true。不要改测试或增加其他文件，修复后验证。",
+    "files": {"status.mjs": "export const isReady = value => Boolean(value.status);\n", "check.mjs": "import assert from 'node:assert/strict'; import {isReady} from './status.mjs'; assert.equal(isReady({status:'pending'}),false); assert.equal(isReady({status:'ready'}),true); assert.equal(isReady({status:'failed'}),false);\n"},
+    "allowedChanges": ["status.mjs"]
+  },
+  {
+    "id": "read-only-planning",
+    "prompt": "只读规划：阅读 service.mjs，说明如何改成注入 clock，给出验收建议。不要修改或创建任何文件，不要实施。",
+    "files": {"service.mjs": "export const now = () => Date.now();\n"},
+    "allowedChanges": []
+  },
+  {
+    "id": "approved-continuation",
+    "prompt": "继续完成已批准范围：tasks.md 的 A 已完成，B/C 待完成。授权你修复 format.mjs 中 trim 和 upper，两项都完成后运行 check.mjs 验证并更新 tasks.md。不要重复问能否开始或继续，不改 A 的实现。",
+    "files": {"format.mjs": "export const lower = value => value.toLowerCase();\nexport const trim = value => value;\nexport const upper = value => value;\n", "tasks.md": "- [x] A lower 已完成，保留实现\n- [ ] B trim 去除首尾空格\n- [ ] C upper 转大写\n", "check.mjs": "import assert from 'node:assert/strict'; import {lower,trim,upper} from './format.mjs'; assert.equal(lower('Ab'),'ab'); assert.equal(trim(' a '),'a'); assert.equal(upper('ab'),'AB');\n"},
+    "allowedChanges": ["format.mjs", "tasks.md"]
+  }
+]

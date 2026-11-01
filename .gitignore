@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+artifacts/
+workbench/
+.superpowers/
+.serena/
+.codex/config.toml
+*.log
+.DS_Store

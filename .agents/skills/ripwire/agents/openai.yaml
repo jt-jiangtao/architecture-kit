@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ripwire"
+  short_description: "Change impact, callers, tests, and code risk"
+  default_prompt: "Use $ripwire to assess the change impact and choose the tests to run."
