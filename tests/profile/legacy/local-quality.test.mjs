@@ -19,6 +19,13 @@ test('Knip findings, crashes and malformed evidence are distinct', () => {
   assert.equal(classify(command, result(0, '{}')).execution, 'error')
   assert.equal(classify(command, result(0, '{"files":[],"issues":[]}')).verdict, 'pass')
 })
+test('Knip 6 file observations preserve whole-file identity', () => {
+  const file = 'packages/a/src/unused.ts'
+  const row = classify(command, result(1, JSON.stringify({ issues: [{ file, files: [{ name: file }] }] })))
+  assert.deepEqual(row.findings, ['unused-file:' + file])
+  const invalid = classify(command, result(1, JSON.stringify({ issues: [{ file, files: [{ name: 'other.ts' }] }] })))
+  assert.equal(invalid.execution, 'error')
+})
 test('report generation never means no candidates; duplicate source is review', () => {
   assert.equal(
     classify(

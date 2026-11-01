@@ -51,6 +51,21 @@ for (const r of CORPUS_ROOTS) {
 for (const f of ['package.json', 'vitest.config.ts', 'playwright.config.ts', 'dependency-cruiser.config.cjs', 'eslint.config.mjs']) {
   if (exists(f)) texts.set(f, fs.readFileSync(path.join(ROOT, f), 'utf8'))
 }
+// Keep only literal script paths in evidence. Other hook arguments can be private.
+const hookFile = '.codex/hooks.json'
+const hookScripts = new Set()
+if (exists(hookFile)) {
+  const { hooks } = JSON.parse(fs.readFileSync(path.join(ROOT, hookFile), 'utf8'))
+  for (const groups of Object.values(hooks ?? {})) {
+    for (const group of groups) {
+      for (const hook of group.hooks ?? []) {
+        if (hook.type !== 'command' || typeof hook.command !== 'string') continue
+        for (const match of hook.command.matchAll(/\bscripts\/[\w./-]+\.(?:[cm]?js|ts|sh|py)(?=["'\s]|$)/g))
+          hookScripts.add(match[0])
+      }
+    }
+  }
+}
 console.log(`corpus files: ${texts.size}`)
 
 const DYNAMIC_HINT = /new Worker\b|worker_threads|child_process|spawn\(|execFile\(|fork\(|import\(|require\.resolve|path\.join\([^)]*['"`][^'"`]+['"`]|readFileSync\([^)]*['"`][^'"`]+\.(ts|js|mjs)/
@@ -61,6 +76,10 @@ function triageFile(file) {
   const evidences = []
   let score = 0 // higher = more likely still used
 
+  if (hookScripts.has(file)) {
+    evidences.push({ from: hookFile, kind: 'hook-script-reference', snippet: file })
+    score += 10
+  }
   for (const [from, text] of texts) {
     if (from === file) continue
     // exact path mention

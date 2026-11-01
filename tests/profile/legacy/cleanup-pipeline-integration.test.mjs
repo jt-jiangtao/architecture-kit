@@ -5,6 +5,7 @@ import path from 'node:path'
 import {
   deleteFile,
   prepareCleanup,
+  readDiffStats,
   verifyCleanup
 } from '../../../profiles/action-driver/audit-redundant/cleanup-pipeline.mjs'
 
@@ -31,6 +32,16 @@ function result(id, findings = [], extra = {}) {
     ...extra
   }
 }
+
+test('diff stats count a directory symlink as one changed entry', (t) => {
+  const root = fixture()
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  fs.mkdirSync(path.join(root, 'skill'))
+  fs.symlinkSync('skill', path.join(root, 'skill-link'), 'dir')
+  assert.deepEqual(readDiffStats(root, ['skill-link']), [
+    { file: 'skill-link', additions: 1, deletions: 0 }
+  ])
+})
 
 test('prepare and verify produce a run-bound L1 cleanup record', async () => {
   const root = fixture()
@@ -67,13 +78,13 @@ test('prepare and verify produce a run-bound L1 cleanup record', async () => {
       const runDir = path.join(root, command[command.indexOf('--out') + 1])
       const duplicate = {
         format: 'typescript',
-        firstFile: { name: 'packages/a/src/one.ts' },
-        secondFile: { name: 'packages/a/src/two.ts' }
+        firstFile: { name: 'a/src/one.ts' },
+        secondFile: { name: 'a/src/two.ts' }
       }
       writeJson(path.join(runDir, 'results.json'), {
         results: [
-          result('knip', ['unused-file:packages/a/src/knip-dead.ts']),
-          result('knip-production'),
+          result('knip', ['unused-file:packages/a/src/knip-dead.ts', 'packages/a/src/one.ts:types:Both']),
+          result('knip-production', ['unused-file:packages/a/src/test-used.ts', 'packages/a/src/one.ts:types:Both', 'packages/a/src/one.ts:types:TestOnly']),
           result('jscpd', [JSON.stringify(duplicate)], {
             report: path.join(
               root,
@@ -107,10 +118,17 @@ test('prepare and verify produce a run-bound L1 cleanup record', async () => {
     assert.equal(prepared.ledger.candidates[0].level, 1)
     assert.equal(prepared.ledger.candidates[0].state, 'ready')
     assert.ok(prepared.ledger.candidates.some((item) => item.kind === 'knip-unused-file'))
+    const productionOnly = prepared.ledger.candidates.filter(item => item.targets.some(target => target.file === 'packages/a/src/test-used.ts'))
+    assert.equal(productionOnly.length, 1)
+    assert.equal(productionOnly[0].level, 2)
+    assert.equal(productionOnly[0].targets[0].symbol, undefined)
     assert.ok(prepared.ledger.candidates.some((item) => item.kind === 'duplicate-code'))
 
     const ledgerFile = path.join(root, out, 'cleanup-ledger.json')
     const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'))
+    const modes = name => ledger.candidates.find(c => c.targets.some(t => t.symbol === name)).evidence.map(item => item.mode)
+    assert.deepEqual(modes('Both'), ['default', 'production'])
+    assert.deepEqual(modes('TestOnly'), ['production'])
     const candidate = ledger.candidates[0]
     candidate.allowedChanges = [
       { file: 'packages/a/src/dead.ts', kind: 'source', maxNetAdditions: 0 }

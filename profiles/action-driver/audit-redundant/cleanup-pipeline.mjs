@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { ROOT } from './lib.mjs'
+import { snapshotSourceReader, uniqueCloneBlock } from './clone-source-evidence.mjs'
 import {
   actionForCandidate,
   buildCleanupLedger as createLedgerRecord,
@@ -101,7 +102,14 @@ function addCandidate(list, next) {
     .map((item) => `${item.file}#${item.symbol || ''}`)
     .sort()
     .join(',')}:${next.identity || ''}`
-  if (list.some((item) => item._key === key)) return
+  const existing = list.find((item) => item._key === key)
+  if (existing) {
+    if (next.kind === 'knip-unused-export') {
+      for (const evidence of next.evidence)
+        if (evidence.mode && !existing.evidence.some(item => item.mode === evidence.mode)) existing.evidence.push(evidence)
+    }
+    return
+  }
   list.push({ ...next, _key: key })
 }
 
@@ -154,9 +162,13 @@ export function buildCleanupLedger({
         'knip-unused-file',
         1,
         [target(file)],
-        [{ source: 'knip', detail: 'unused file from current quality run' }]
+        [{ source: 'knip', mode: 'default', detail: 'unused file in default Knip run' }]
       )
     )
+  for (const file of reports.knip?.productionOnlyFiles || [])
+    addCandidate(candidates, candidate('knip-production-unused-file', 2, [target(file)], [
+      { source: 'knip', mode: 'production', detail: 'unused only in production mode' }
+    ]))
   for (const issue of reports.knip?.issues || []) {
     if (!issue?.file) continue
     addCandidate(
@@ -168,6 +180,7 @@ export function buildCleanupLedger({
         [
           {
             source: 'knip',
+            ...(['exports', 'types'].includes(issue.category) && issue.mode ? { mode: issue.mode } : {}),
             detail: JSON.stringify({
               category: issue.category,
               value: issue.value,
@@ -267,6 +280,78 @@ export function normalizeJscpdDuplicates(duplicates, resolveFile) {
   return { duplicates: resolved, unresolved }
 }
 
+// jscpd may choose a different representative for an existing occurrence.
+export function newDuplicateRecords(baseline, current, beforeInputs = {}, afterInputs = {}, readSource) {
+  const exact = new Set(baseline)
+  const priorPairs = new Map()
+  const priorOccurrences = new Map()
+  function occurrences(record, inputs) {
+    let clone
+    try { clone = JSON.parse(record) } catch { return [] }
+    if (typeof clone?.format !== 'string' || typeof clone.fragment !== 'string' || !clone.fragment) return []
+    const keys = []
+    for (const end of [clone.firstFile, clone.secondFile]) {
+      if (typeof end?.name !== 'string') continue
+      const name = end.name.replace(/^\.\//, '')
+      const matches = ['', 'apps/', 'packages/', 'plugins/', 'scripts/', 'tests/']
+        .map(prefix => prefix + name).filter(file => Object.hasOwn(inputs, file))
+      if (matches.length !== 1) continue
+      const file = matches[0]
+      const hash = inputs[file]
+      const start = end.startLoc?.position
+      const finish = end.endLoc?.position
+      if (!/^[a-f0-9]{64}$/.test(hash) || !Number.isSafeInteger(start) ||
+          !Number.isSafeInteger(finish) || start < 0 || finish <= start) continue
+      keys.push({
+        group: JSON.stringify([file, hash, clone.format]), start, finish,
+        file, hash, format: clone.format, fragment: clone.fragment,
+        firstLine: end.start, lastLine: end.end,
+        startColumn: end.startLoc.column, endColumn: end.endLoc.column
+      })
+    }
+    return keys
+  }
+  function pairKey(entries) {
+    return JSON.stringify([entries[0].format, entries[0].fragment, entries.map(e => e.file).sort()])
+  }
+  function matchesMovedPair(entries) {
+    if (!readSource) return false
+    const candidates = priorPairs.get(pairKey(entries))
+    if (!candidates) return false
+    const blocks = entries.map(entry => uniqueCloneBlock(entry, readSource))
+    if (!blocks.every(Boolean)) return false
+    return candidates.some(prior => [prior, [prior[1], prior[0]]].some(pair =>
+      pair.some((entry, i) => entry.hash !== entries[i].hash) && pair.every((entry, i) =>
+        entry.file === entries[i].file && blocks[i] === uniqueCloneBlock(entry, readSource)
+      )))
+  }
+  for (const record of baseline) {
+    const entries = occurrences(record, beforeInputs)
+    if (entries.length !== 2) continue
+    if (readSource) {
+      const key = pairKey(entries)
+      if (!priorPairs.has(key)) priorPairs.set(key, [])
+      priorPairs.get(key).push(entries)
+    }
+    for (const item of entries) {
+      if (!priorOccurrences.has(item.group)) priorOccurrences.set(item.group, [])
+      priorOccurrences.get(item.group).push(item)
+    }
+  }
+  function alreadyCovered(item) {
+    return priorOccurrences.get(item.group)?.some(prior => {
+      if (prior.fragment === item.fragment)
+        return prior.start === item.start && prior.finish === item.finish
+      return prior.start <= item.start && item.finish <= prior.finish && prior.fragment.includes(item.fragment)
+    })
+  }
+  return current.filter(record => {
+    if (exact.has(record)) return false
+    const keys = occurrences(record, afterInputs)
+    return keys.length !== 2 || (!keys.every(alreadyCovered) && !matchesMovedPair(keys))
+  })
+}
+
 export function assessCleanupVerification({
   change,
   checks = [],
@@ -358,9 +443,11 @@ export function readDiffStats(root, files) {
   for (const file of files) {
     if (rows.has(file)) continue
     const absolute = path.join(root, file)
-    const additions = fs.existsSync(absolute)
-      ? fs.readFileSync(absolute, 'utf8').split(/\r?\n/).length
-      : 0
+    const entry = fs.lstatSync(absolute, { throwIfNoEntry: false })
+    let additions = 0
+    if (entry?.isFile()) additions = fs.readFileSync(absolute, 'utf8').split(/\r?\n/).length
+    else if (entry?.isSymbolicLink() || entry?.isDirectory()) additions = 1
+    else if (entry) throw new Error(`Unsupported changed entry: ${file}`)
     rows.set(file, { file, additions, deletions: 0 })
   }
   return [...rows.values()]
@@ -380,11 +467,12 @@ function readQualityOutcome(root, runDir) {
   const results = safeReadJson(path.join(runDir, 'results.json'), null)
   if (!results) return { files: [], issues: [], duplicates: [], results: null }
   const knip = results.results?.filter((item) => item.id.startsWith('knip')) || []
-  const files = knip.flatMap((item) =>
-    (item.findings || [])
-      .filter((finding) => finding.startsWith('unused-file:'))
-      .map((finding) => finding.slice('unused-file:'.length))
+  const unusedFiles = (runs) => runs.flatMap(item =>
+    (item.findings || []).filter(finding => finding.startsWith('unused-file:'))
+      .map(finding => finding.slice('unused-file:'.length))
   )
+  const defaultFiles = new Set(unusedFiles(knip.filter(item => item.id === 'knip')))
+  const files = [...new Set(unusedFiles(knip))]
   const jscpdItem = results.results?.find((item) => item.id === 'jscpd')
   const reportPath = jscpdItem?.report
   const report = reportPath ? safeReadJson(path.resolve(root, reportPath), null) : null
@@ -393,7 +481,9 @@ function readQualityOutcome(root, runDir) {
   )
   return {
     results,
-    files: [...new Set(files)],
+    files,
+    defaultFiles: [...defaultFiles],
+    productionOnlyFiles: files.filter(file => !defaultFiles.has(file)),
     issues: knip.flatMap((item) =>
       (item.findings || [])
         .filter((finding) => !finding.startsWith('unused-file:'))
@@ -402,6 +492,7 @@ function readQualityOutcome(root, runDir) {
           return {
             file,
             category,
+            mode: item.id === 'knip' ? 'default' : item.id === 'knip-production' ? 'production' : undefined,
             value: valueParts.join(':'),
             finding
           }
@@ -606,7 +697,7 @@ export async function prepareCleanup({ root = ROOT, out, now = new Date(), ports
     audit: safeReadJson(path.join(root, out, 'false-positive-refined.json'), {}),
     symbols: safeReadJson(path.join(root, out, 'symbol-dead-code.json'), {}),
     deadTests: safeReadJson(path.join(root, out, 'dead-tests.json'), {}),
-    knip: { files: quality.files, issues: quality.issues },
+    knip: { files: quality.defaultFiles, productionOnlyFiles: quality.productionOnlyFiles, issues: quality.issues },
     jscpd: { duplicates: quality.duplicates },
     results: quality.results
   }
@@ -719,10 +810,15 @@ export async function verifyCleanup({
       }
     : { files: [], duplicates: [] }
   const newUnusedFiles = ratchet.files.filter((file) => !baselineQuality.files.includes(file))
-  const baselineDuplicates = new Set(baselineQuality.duplicates)
-  const newDuplicates = ratchet.duplicates
-    .map((duplicate) => JSON.stringify(duplicate))
-    .filter((duplicate) => !baselineDuplicates.has(duplicate))
+  const currentDuplicates = ratchet.results?.results?.find((item) => item.id === 'jscpd')?.findings
+  if (!baseline || !Array.isArray(currentDuplicates) ||
+      !Array.isArray(baseline.results?.find((item) => item.id === 'jscpd')?.findings))
+    evidenceGaps.push(buildEvidenceGap('jscpd-ratchet', 'missing comparable jscpd findings'))
+  // Both lists contain the serialized clone records from the quality runner.
+  const newDuplicates = newDuplicateRecords(
+    baselineQuality.duplicates, currentDuplicates || [], ledger.snapshot.inputs, current.inputs,
+    snapshotSourceReader(root, ledger.snapshot.head)
+  )
   if (newUnusedFiles.length)
     evidenceGaps.push(
       buildEvidenceGap('knip-ratchet', `new unused files: ${newUnusedFiles.join(', ')}`)

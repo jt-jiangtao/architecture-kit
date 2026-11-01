@@ -48,12 +48,16 @@ export async function runAudit(
     const ledger = JSON.parse(bytes.toString())
     if (!Array.isArray(ledger.candidates))
       throw new Error('Invalid cleanup ledger')
-    candidates = ledger.candidates.map((c: AuditCandidate) => ({
+    candidates = ledger.candidates.map((c: AuditCandidate & { evidence?: { source: string; mode?: string }[] }) => ({
       id: c.id,
       level: c.level,
       kind: c.kind,
       targets: c.targets,
-      state: c.state
+      state: c.state,
+      ...(c.kind === 'knip-unused-export' && c.evidence?.length ? {
+        knipModes: (['default', 'production'] as const).filter(mode =>
+          c.evidence?.some(item => item.source === 'knip' && item.mode === mode))
+      } : {})
     }))
   } catch (error) {
     return {

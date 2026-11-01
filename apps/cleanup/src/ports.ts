@@ -32,6 +32,7 @@ export type Debt = {
   expired: boolean
 }
 export type AuditCandidate = {
+  knipModes?: ('default' | 'production')[]
   id: string
   level: number
   kind: string

@@ -127,7 +127,10 @@ export function renderTasks(
             .map((t) => '`' + t.file + (t.symbol ? '#' + t.symbol : '') + '`')
             .join(', ') +
           ' · ' +
-          c.state
+          c.state +
+          (c.knipModes?.length ? ' · Knip ' + c.knipModes.join(' / ') : '') +
+          (c.knipModes?.length === 1 && c.knipModes[0] === 'production'
+            ? '。仅生产模式报告，请核对测试和动态消费者。' : '')
       )
     lines.push(
       '',

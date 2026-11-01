@@ -3,10 +3,11 @@ import { auditOutput } from './output-native.mjs'
 /**
  * Find tests that import missing modules, and e2e fixtures not referenced by configs/scripts.
  */
+import ts from 'typescript'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
-  ROOT, exists, walkFiles, extractSpecifiers, tryResolveSpecifier, listWorkspacePackages,
+  ROOT, exists, walkFiles, tryResolveSpecifier, listWorkspacePackages,
   buildExportResolveMap, resolveViaExports
 } from './lib.mjs'
 
@@ -21,6 +22,30 @@ function resolveSpec(from, spec) {
   }
   if (!r) r = tryResolveSpecifier(from, spec, packageNameToDir)
   return r
+}
+
+function testModuleSpecifiers(file, source) {
+  const specifiers = new Set()
+  function visit(node) {
+    let specifier
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      specifier = node.moduleSpecifier
+    } else if (ts.isExternalModuleReference(node)) {
+      specifier = node.expression
+    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
+      specifier = node.argument.literal
+      if (ts.isStringLiteralLike(specifier) && specifier.text.startsWith('.') &&
+          ts.resolveModuleName(specifier.text, path.resolve(ROOT, file),
+            { moduleResolution: ts.ModuleResolutionKind.Bundler }, ts.sys).resolvedModule) return
+    } else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === 'require'))) {
+      specifier = node.arguments[0]
+    }
+    if (specifier && ts.isStringLiteralLike(specifier)) specifiers.add(specifier.text)
+    ts.forEachChild(node, visit)
+  }
+  visit(ts.createSourceFile(file, source, ts.ScriptTarget.Latest))
+  return specifiers
 }
 
 const testFiles = []
@@ -39,7 +64,7 @@ const missingLegacy = []
 for (const file of testFiles) {
   let src
   try { src = fs.readFileSync(path.join(ROOT, file), 'utf8') } catch { continue }
-  for (const spec of extractSpecifiers(src)) {
+  for (const spec of testModuleSpecifiers(file, src)) {
     if (!spec.startsWith('.') && !spec.startsWith('@action-driver/') && !packageNameToDir.has(spec.split('/')[0])) continue
     // skip css/raw/assets
     if (/\.(css|md|html|svg|png|json)(\?|$)/.test(spec) || spec.includes('?')) continue

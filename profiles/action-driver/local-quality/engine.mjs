@@ -25,16 +25,23 @@ export function classify(check, run) {
       if (!Array.isArray(data.issues) || (data.files !== undefined && !Array.isArray(data.files)))
         throw new Error('invalid Knip report')
       findings = [
-        ...(data.files || []).map((file) => `unused-file:${file}`),
+        ...(data.files || []).map(file => {
+          if (typeof file !== 'string' || !file) throw new Error('invalid Knip file')
+          return 'unused-file:' + file
+        }),
         ...data.issues.flatMap((issue) =>
           Object.entries(issue)
             .filter(([key]) => !['file', 'owners'].includes(key))
             .flatMap(([kind, values]) =>
               Array.isArray(values)
-                ? values.map(
-                    (value) =>
-                      `${issue.file}:${kind}:${typeof value === 'string' ? value : value.name || JSON.stringify(value)}`
-                  )
+                ? values.map(value => {
+                    const name = typeof value === 'string' ? value : value.name
+                    if (kind === 'files') {
+                      if (!name || name !== issue.file) throw new Error('invalid Knip file observation')
+                      return 'unused-file:' + name
+                    }
+                    return `${issue.file}:${kind}:${name || JSON.stringify(value)}`
+                  })
                 : []
             )
         )

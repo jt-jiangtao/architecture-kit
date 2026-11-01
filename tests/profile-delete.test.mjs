@@ -10,9 +10,9 @@ import { snapshotRepo } from '../profiles/action-driver/local-quality/native.mjs
 import { collectFacts } from '../dist/packages/adapters/src/workspace.js'
 const bin = path.resolve('bin/architecture-kit.mjs')
 const sum = (data) => createHash('sha256').update(data).digest('hex')
-for (const failure of [false, true]) {
+for (const [failure, mode] of [[false, 'default'], [true, 'default'], [false, undefined]]) {
   test(
-    'public delete previews a bound file; ' +
+    !mode ? 'preview rejects historical Knip evidence lacking a mode' : 'public delete previews a bound file; ' +
       (failure
         ? 'failed end hook restores it'
         : 'apply removes exactly the file'),
@@ -86,7 +86,7 @@ for (const failure of [false, true]) {
           state: 'ready',
           review: {},
           snapshot: snap.digest,
-          evidence: [{ source: i ? 'knip' : 'audit', snapshot: snap.digest }]
+          evidence: [{ source: i ? 'knip' : 'audit', ...(i && mode ? { mode } : {}), snapshot: snap.digest }]
         })
       )
       const ledger = {
@@ -137,6 +137,12 @@ for (const failure of [false, true]) {
         review,
         '--json'
       )
+      if (!mode) {
+        assert.equal(dry.status, 2, dry.stderr)
+        assert.match(dry.stderr, /Default Knip whole-file evidence required/)
+        assert.equal(await fs.readFile(path.join(root, target), 'utf8'), bytes)
+        return
+      }
       assert.equal(dry.status, 0, dry.stderr)
       assert.equal(await fs.readFile(path.join(root, target), 'utf8'), bytes)
       const apply = cli(

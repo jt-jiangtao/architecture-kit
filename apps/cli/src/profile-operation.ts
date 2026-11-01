@@ -272,6 +272,9 @@ export async function profileOperation(
     throw new Error(
       'Independent reachability and Knip whole-file evidence required'
     )
+  if (!fileCandidates.some((c: typeof candidate) => c.kind === 'knip-unused-file' &&
+    c.evidence?.some((e: { source: string; mode?: string }) => e.source === 'knip' && e.mode === 'default')))
+    throw new Error('Default Knip whole-file evidence required; rerun cleanup check')
   const path = await within(root, target)
   progress('复核删除保护与快照 · ' + target)
   const facts = await collectFacts(root, config.storage.root)

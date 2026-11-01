@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import ts from 'typescript'
 import {
-  ROOT, exists, walkFiles, listWorkspacePackages, flattenExports
+  ROOT, exists, walkFiles, listWorkspacePackages, flattenExports, buildExportResolveMap, resolveViaExports
 } from './lib.mjs'
 
 const pkgs = listWorkspacePackages()
@@ -97,11 +97,31 @@ function containsIdentifier(text,name) {
   return false
 }
 
-function countRefs(name, definingFile) {
+// The independent mobile app consumes workspace exports but is outside the target set.
+const mobileConsumers = new Map()
+const workspaceExports = buildExportResolveMap(pkgs)
+for (const file of walkFiles('apps/mobile')) {
+  const source = ts.createSourceFile(file, fs.readFileSync(path.join(ROOT, file), 'utf8'), ts.ScriptTarget.Latest)
+  for (const statement of source.statements) {
+    const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings :
+      ts.isExportDeclaration(statement) ? statement.exportClause : undefined
+    if (!bindings || !(ts.isNamedImports(bindings) || ts.isNamedExports(bindings)) || !statement.moduleSpecifier) continue
+    const entry = resolveViaExports(statement.moduleSpecifier.text, workspaceExports)
+    if (!entry) continue
+    for (const element of bindings.elements) {
+      const key = entry + ':' + (element.propertyName ?? element.name).text
+      if (!mobileConsumers.has(key)) mobileConsumers.set(key, new Set())
+      mobileConsumers.get(key).add(file)
+    }
+  }
+}
+
+function countRefs(name, definingFile, entry) {
   // avoid ultra-short names
   if (name.length < 3 || name.startsWith('*')) return { refs: -1, samples: [] }
-  let refs = 0
-  const samples = []
+  const consumers = mobileConsumers.get(entry + ':' + name)
+  let refs = consumers?.size ?? 0
+  const samples = consumers ? [...consumers].sort().slice(0, 4) : []
   for (const [file, text] of texts) {
     if (file === definingFile) continue
     if (containsIdentifier(text,name)) {
@@ -137,7 +157,7 @@ for (const ef of [...entryFiles].sort()) {
     if (seen.has(key)) continue
     seen.add(key)
     scanned++
-    const { refs, samples } = countRefs(s.name, s.file)
+    const { refs, samples } = countRefs(s.name, s.file, ef)
     if (refs < 0) continue
     const row = { packageDir: ef.split('/').slice(0, 2).join('/'), entry: ef, ...s, refsOutside: refs, samples }
     if (refs === 0) {
