@@ -26,7 +26,7 @@
 - 多文件修改、回归定位、测试选择或栈追踪：先运行 `pnpm ripwire-project --situ|--for|--impact|--affected|--from-trace`。
 - Shell、凭据、网络、路径处理、MCP 或插件权限：完成前运行 Semgrep。
 - 普通浏览器任务优先 ego-browser；失败、不可用或需要 console/network/trace/性能诊断时使用 Playwright CLI。
-- RTK 只能压缩输出，最终结论必须核对原始退出码与日志。
+- 使用 RTK 时，先按包、路径或失败项筛选审计清单、日志和 JSON，只返回当前判断所需的条目与总数。批量调用共享输出预算。网页和 MCP 结果只取所需字段，同一结果只返回一份表示。最终结论核对原始退出码与日志。
 
 ## 按需入口
 
