@@ -2,6 +2,7 @@ import { BrowserOnly } from '@rspress/core/runtime';
 import graph from './graph.json';
 
 <h1>{graph.component.title}</h1>
+<p>{graph.mode === "preview" ? "工作区预览 · 基线 " : "提交版本 "}<code>{graph.revision.slice(0, 9)}</code></p>
 <p><code>{graph.package}</code> · {graph.component.description}</p>
 
 ## 架构视图

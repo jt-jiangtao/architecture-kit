@@ -7,7 +7,7 @@ import { relative, resolve, join, isAbsolute, sep } from 'node:path'
 import { readFile, realpath } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { ARCHITECTURE_KIT_VERSION } from '../../../src/index.js'
-import { loadConfig, initConfig } from '../../../packages/config/src/index.js'
+import { loadConfig, initConfig, workspaceLocation } from '../../../packages/config/src/index.js'
 import { collectFacts } from '../../../packages/adapters/src/workspace.js'
 import { runKnip } from '../../../packages/adapters/src/knip.js'
 import {
@@ -97,6 +97,9 @@ const commands = new Map([
     'Validate all registered configurations and input references.'
   ],
   ['config show', 'Print resolved configuration as JSON.'],
+  ['architecture init-docs', 'Create docs/architecture/README.md once.'],
+  ['architecture watch', 'Watch local changes and serve a browser preview [--port NUMBER].'],
+  ['architecture mcp', 'Serve read-only queries over MCP stdio.'],
   ['architecture generate', 'Generate module and source indexes.'],
   ['cleanup check', 'Run read-only analysis, configured tools and hooks.']
 ])
@@ -133,7 +136,7 @@ function digest(value: unknown) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[], canPublishPreview?: () => boolean): Promise<number> {
   const controller = new AbortController()
   const interrupt = () => controller.abort()
   process.once('SIGINT', interrupt)
@@ -156,6 +159,7 @@ export async function main(argv: string[]): Promise<number> {
         help: { type: 'boolean', short: 'h' },
         version: { type: 'boolean' },
         config: { type: 'string' },
+        port: { type: 'string' },
         json: { type: 'boolean' },
         'run-id': { type: 'string' },
         plan: { type: 'boolean' },
@@ -240,6 +244,29 @@ export async function main(argv: string[]): Promise<number> {
       throw new Error('--from requires --run-id')
     machine = Boolean(values.json)
     const file = resolve(values.config ?? 'architecture-kit.config.json')
+    if (values.port !== undefined && cmd !== 'architecture watch')
+      throw Error('--port requires architecture watch')
+    if (cmd === 'architecture mcp') {
+      const { serveMcp } = await import('../../architecture/src/mcp.js')
+      await serveMcp(await workspaceLocation(file), controller.signal)
+      return 0
+    }
+    if (cmd === 'architecture init-docs' || cmd === 'architecture watch') {
+      const config = await loadConfig(file, 'architecture')
+      if (cmd === 'architecture init-docs') {
+        const { initDocs } = await import('../../architecture/src/workspace.js')
+        await initDocs(config, file)
+      } else {
+        const { watchWorkspace } = await import('../../architecture/src/watch.js')
+        const port = Number(values.port ?? 4192)
+        if (!Number.isInteger(port) || port < 0 || port > 65535)
+          throw Error('Invalid preview port')
+        await watchWorkspace(config, file, port, controller.signal, canPublish =>
+          main(['architecture', 'generate', '--config', file], canPublish)
+        )
+      }
+      return 0
+    }
     if (capture) {
       const config = await loadConfig(file, 'optimize')
       if (!config.profile)
@@ -454,7 +481,9 @@ export async function main(argv: string[]): Promise<number> {
       ;({ result, report } = generate(facts, config.flows.architecture.outputs))
       if (config.flows.architecture.module) {
         const { publishModule } = await import('../../architecture/src/module-output.js')
-        const moduleArtifacts = await publishModule(root, config.flows.architecture.module, round.output, controller.signal)
+        const moduleArtifacts = await publishModule(root, config.flows.architecture.module, round.output, controller.signal, Boolean(canPublishPreview))
+        if ((await configuredInputs()) !== initialInputs || (canPublishPreview && !canPublishPreview()))
+          throw new Error('Module inputs changed during generation')
         result = { ...result as object, moduleArtifacts }
         report += '\n[模块网站](' + moduleArtifacts.site + ')\n'
       }
@@ -472,6 +501,10 @@ export async function main(argv: string[]): Promise<number> {
       status: response.status,
       resultDigest: digest(result)
     })
+    if (flow === 'architecture' && config.flows.architecture?.module && complete) {
+      const { markCurrent } = await import('../../architecture/src/workspace.js')
+      await markCurrent(config, round)
+    }
     if (flow !== 'architecture')
       progress(
         response.status +

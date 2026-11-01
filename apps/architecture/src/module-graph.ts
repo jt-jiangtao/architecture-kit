@@ -6,7 +6,11 @@ import { Application, normalizePath } from "typedoc";
 import { parse } from "yaml";
 import type { ArchitectureModule } from "../../../packages/config/src/index.js";
 
-export async function moduleGraph(root: string, config: ArchitectureModule) {
+export async function moduleGraph(
+  root: string,
+  config: ArchitectureModule,
+  previewSources?: Map<string, string>,
+) {
   const revision = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: root,
     encoding: "utf8",
@@ -19,27 +23,36 @@ export async function moduleGraph(root: string, config: ArchitectureModule) {
     let text = files.get(file);
     if (text === undefined) {
       text = await readFile(full, "utf8");
-      const original = execFileSync("git", ["show", revision + ":" + file], {
-        cwd: root,
-        encoding: "utf8",
-        maxBuffer: 16_000_000,
-      });
-      if (text !== original)
-        throw Error(
-          "Commit module input before generating source links: " + file,
-        );
+      if (previewSources) {
+        previewSources.set(file, text);
+      } else {
+        const original = execFileSync("git", ["show", revision + ":" + file], {
+          cwd: root,
+          encoding: "utf8",
+          maxBuffer: 16_000_000,
+        });
+        if (text !== original)
+          throw Error(
+            "Commit module input before generating source links: " + file,
+          );
+      }
       files.set(file, text);
     }
     return text;
   }
   const url = (file: string, line: number) =>
-    config.repository +
-    "/blob/" +
-    revision +
-    "/" +
-    file.split("/").map(encodeURIComponent).join("/") +
-    "#L" +
-    line;
+    previewSources
+      ? "./sources/" +
+        file.split("/").map(encodeURIComponent).join("/") +
+        ".html#L" +
+        line
+      : config.repository +
+        "/blob/" +
+        revision +
+        "/" +
+        file.split("/").map(encodeURIComponent).join("/") +
+        "#L" +
+        line;
   const manifest = JSON.parse(await source(config.manifest));
   await source(config.entry);
   await source(config.tsconfig);
@@ -161,6 +174,7 @@ export async function moduleGraph(root: string, config: ArchitectureModule) {
   };
   return {
     schemaVersion: 1,
+    mode: previewSources ? "preview" : "commit",
     revision,
     package: String(manifest.name),
     component,

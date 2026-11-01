@@ -1,3 +1,4 @@
+import { escapeText } from "entities";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import {
@@ -23,8 +24,10 @@ export async function publishModule(
   config: ArchitectureModule,
   output: string,
   signal: AbortSignal,
+  preview = false,
 ) {
-  const graph = await moduleGraph(root, config);
+  const sources = preview ? new Map<string, string>() : undefined;
+  const graph = await moduleGraph(root, config, sources);
   const index = graph.apis.map((api) => ({
     file: api.file,
     symbol: api.name,
@@ -83,6 +86,35 @@ export async function publishModule(
       json(graph),
     );
     await writeFile(join(stage, "site", "source-index.json"), json(index));
+    if (sources) {
+      const linked = new Set(
+        [...graph.apis, ...graph.decision.tests].map((row) => row.file),
+      );
+      for (const file of linked) {
+        const page = join(stage, "site", "sources", file + ".html");
+        const text = sources.get(file)!;
+        const escaped = escapeText(text);
+        const lines = escaped
+          .split("\n")
+          .map(
+            (line, i) =>
+              '<span id="L' +
+              (i + 1) +
+              '">' +
+              (i + 1) +
+              "  " +
+              line +
+              "</span>",
+          );
+        await mkdir(dirname(page), { recursive: true });
+        await writeFile(
+          page,
+          '<!doctype html><meta charset="utf-8"><title>工作区源码快照</title><style>:target{background:#ffe89b}</style><pre>' +
+            lines.join("\n") +
+            "</pre>",
+        );
+      }
+    }
     if ((await realpath(output)) !== output)
       throw Error("Architecture output directory changed");
     await cp(join(stage, "site"), join(output, "site"), {
@@ -91,7 +123,12 @@ export async function publishModule(
       force: false,
     });
     const link = (item: { name: string; sourceUrl: string }) =>
-      "- [" + item.name + "](" + item.sourceUrl + ")";
+      "- [" +
+      item.name +
+      "](" +
+      (preview ? "site/" : "") +
+      item.sourceUrl +
+      ")";
     await writeFile(
       join(output, "decision.md"),
       [

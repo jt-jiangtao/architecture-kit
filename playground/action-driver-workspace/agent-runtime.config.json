@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "storage": {
+    "root": ".architecture-kit/agent-runtime",
+    "output": "output"
+  },
+  "profile": "action-driver",
+  "architectureModule": "config/architecture-kit/workspace/agent-runtime/module.json"
+}

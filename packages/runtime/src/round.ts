@@ -22,7 +22,7 @@ export type Round = {
   output: string
 }
 
-async function jsonFile(path: string, value: unknown) {
+export async function jsonFile(path: string, value: unknown) {
   const temp = path + '.' + randomUUID() + '.tmp'
   await writeFile(temp, JSON.stringify(value, null, 2) + '\n', { flag: 'wx' })
   await rename(temp, path)
@@ -41,7 +41,7 @@ function safeParts(path: string): string[] {
   return parts
 }
 
-async function ensureDirectory(parent: string, path: string) {
+export async function ensureDirectory(parent: string, path: string) {
   for (const part of safeParts(path)) {
     parent = join(parent, part)
     try {

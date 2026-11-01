@@ -68,3 +68,13 @@ architecture-kit optimize check --run-id rollout --task rollout-oversized-page -
 ```
 
 Each invocation creates a round with tasks.md, report.md, result.json and evidence per task. Review rows are hypotheses. Gate rows record behavior or budget checks. Metric tasks require both a passing behavior check and a named workload with finite samples. `--cleanup-from RUN/ROUND` adds duplicate candidates from a complete cleanup report matching the current repository snapshot. A comparable regression exits 1, an incomplete execution exits 2. Missing external capture data and Linux-only hardware scenarios report gaps independently. Raw evidence and the CLI receipt distinguish these from measured regressions.
+
+## Architecture workspace
+
+Configure one module per architecture configuration and storage root. From the consumer repository, run `architecture-kit architecture init-docs` to create the human and agent entry in `docs/architecture/README.md`. Existing files are preserved. Use `--config PATH` on each command for a named configuration.
+
+- `architecture generate` publishes the module website, Markdown and graph from committed source. A complete module round atomically replaces `<storage.root>/architecture/current.json`.
+- `architecture watch --port 4192` serves a loopback preview. Saving package sources, configured inputs or linked test files queues another build. Each preview links to its own local source snapshots. The browser reloads on successful publication and reports a failed build while continuing to serve the last successful version.
+- `architecture mcp` starts a read-only stdio MCP server. Launch it with the same consumer working directory and config. Clients can call `lookup_symbol` (export name or package#export, optional file), `get_component`, or `get_decision` with an exact ID. Responses include the round version, Git revision, preview/commit mode and the relative site directory. A query reads one complete round. Separate clients using the same config share the same published pointer.
+
+[Action-Driver local harness and agent-runtime example](playground/action-driver-workspace/README.md)

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "storage": {
+    "root": ".architecture-kit/harness-local",
+    "output": "output"
+  },
+  "profile": "action-driver",
+  "architectureModule": "config/architecture-kit/workspace/harness-local/module.json"
+}

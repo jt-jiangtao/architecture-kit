@@ -518,6 +518,11 @@ async function optimizeConfig(
     )
   }
 }
+export async function workspaceLocation(file: string) {
+  const {root,storage} = await parseRoot(file)
+  return {root,storage}
+}
+
 export async function loadConfig(
   file: string,
   only?: FlowName
