@@ -231,7 +231,7 @@ export async function prepareGuide(
         "#L" +
         line;
   const docsByFile = new Map(docs.map((d) => [d.file, d]));
-  function markdown(d: Doc) {
+  function markdown(d: Doc, diagram: string, overview = false) {
     const md = new MarkdownIt({ html: false });
     const seen = new Map<string, number>();
     md.renderer.rules.heading_open = (tokens, i, opts, env, self) => {
@@ -267,7 +267,61 @@ export async function prepareGuide(
       }
       return self.renderToken(tokens, i, opts);
     };
-    return md.render(d.body);
+    // Only a standalone image paragraph becomes a React view. Code fences,
+    // inline images and ordinary Markdown links retain their own semantics.
+    const env = {};
+    const tokens = md.parse(d.body, env);
+    const parts: string[] = [];
+    let start = 0;
+    function flush(end: number) {
+      if (end === start) return;
+      let html = md.renderer.render(tokens.slice(start, end), md.options, env);
+      if (overview)
+        html = html.replace(/<h1(.*?)>(.*?)<\/h1>/, "<h2$1>$2</h2>");
+      parts.push(htmlBlock(html));
+    }
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i]!,
+        inline = tokens[i + 1],
+        image = inline?.children?.[0];
+      if (
+        t.level !== 0 ||
+        t.type !== "paragraph_open" ||
+        inline?.type !== "inline" ||
+        inline.children?.length !== 1 ||
+        image?.type !== "image" ||
+        tokens[i + 2]?.type !== "paragraph_close"
+      )
+        continue;
+      const src = image.attrGet("src") ?? "";
+      const [path, view] = src.split("#");
+      if (
+        !path ||
+        !/\.(likec4|c4)$/i.test(path) ||
+        /^(?:[a-z][\w+.-]*:|\/)/i.test(path)
+      )
+        continue;
+      const file = relative(
+        root,
+        resolve(root, dirname(d.file), decodeURIComponent(path)),
+      )
+        .split(sep)
+        .join("/");
+      const target = docsByFile.get(file);
+      const id = view
+        ? decodeURIComponent(view)
+        : target?.views.length === 1
+          ? target.views[0]
+          : undefined;
+      if (!target || !id || !target.views.includes(id))
+        throw Error(d.file + ": unresolved embedded LikeC4 view " + src);
+      flush(i);
+      parts.push(diagramBlock(diagram, [id], false));
+      start = i + 3;
+      i += 2;
+    }
+    flush(tokens.length);
+    return parts.join("\n\n");
   }
   for (const d of docs.filter((d) => !d.file.endsWith(".md"))) {
     const dest = join(modelDir, d.file);
@@ -398,27 +452,28 @@ export async function prepareGuide(
       );
     }
     const intro = own.find((d) => d.path === "README.md");
+    const diagram = relative(
+      dirname(join(pages, route + "/index.mdx")),
+      join(stage, "Diagram.jsx"),
+    );
     const overview =
       "<h1>" +
       escapeText(m.component.title) +
       "</h1><p>" +
       escapeText(m.component.description) +
-      "</p>" +
-      (intro
-        ? markdown(intro).replace(/<h1(.*?)>(.*?)<\/h1>/, "<h2$1>$2</h2>")
-        : "") +
-      "<h2>公开 API</h2><ul>" +
-      apiHtml +
-      "</ul>";
-    const diagram = relative(
-      dirname(join(pages, route + "/index.mdx")),
-      join(stage, "Diagram.jsx"),
-    );
+      "</p>";
     await page(
       pages,
       route + "/index",
       m.component.title,
-      htmlBlock(overview) + "\n\n" + diagramBlock(diagram, [m.component.view]),
+      [
+        htmlBlock(overview),
+        intro && markdown(intro, diagram, true),
+        htmlBlock("<h2>公开 API</h2><ul>" + apiHtml + "</ul>"),
+        diagramBlock(diagram, [m.component.view]),
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     );
     const moduleTypes = types.filter(
       (t) =>
@@ -455,7 +510,11 @@ export async function prepareGuide(
   for (const d of docs) {
     let body: string;
     if (d.path.endsWith(".md")) {
-      body = htmlBlock(markdown(d));
+      const diagram = relative(
+        dirname(join(pages, d.route + ".mdx")),
+        join(stage, "Diagram.jsx"),
+      );
+      body = browserImport + markdown(d, diagram);
     } else {
       const diagram = relative(
         dirname(join(pages, d.route + ".mdx")),
@@ -499,10 +558,12 @@ export async function prepareGuide(
   };
 }
 
-function diagramBlock(path: string, views: string[]) {
+const browserImport =
+  'import { BrowserOnly } from "@rspress/core/runtime";\n\n';
+function diagramBlock(path: string, views: string[], withImport = true) {
   const spec = path.startsWith(".") ? path : "./" + path;
   return (
-    'import { BrowserOnly } from "@rspress/core/runtime";\n\n' +
+    (withImport ? browserImport : "") +
     views
       .map(
         (id) =>

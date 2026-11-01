@@ -30,7 +30,7 @@ test("module README, C4 views and nested protocol fields have navigable paths", 
   await put("sample/tsconfig.json", "{}");
   await put(
     "sample/docs/architecture/README.md",
-    "# Readme\n\n[View](views/example.c4)",
+    "# Readme\n\n[View](views/example.c4)\n\n![Steps](views/example.c4#sampleView)",
   );
   await put(
     "sample/docs/architecture/views/example.c4",
@@ -94,6 +94,14 @@ test("module README, C4 views and nested protocol fields have navigable paths", 
       view.route + ".html",
     ),
   );
+  const renderedDoc = await readFile(
+    join(pages, "modules/sample/docs/README.md.mdx"),
+    "utf8",
+  );
+  assert.match(renderedDoc, /LikeC4View viewId=\{"sampleView"\}/);
+  assert.doesNotMatch(renderedDoc, /<img/);
+  await put("sample/docs/architecture/README.md", "![Steps](views/example.c4#missing)");
+  await assert.rejects(run(), /unresolved embedded LikeC4 view views\/example.c4#missing/);
   await put("sample/docs/architecture/README.md", "[Missing](absent.md)");
   await assert.rejects(run(), /missing documentation link absent.md/);
 });
