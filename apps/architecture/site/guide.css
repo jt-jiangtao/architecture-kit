@@ -1,0 +1,13 @@
+.ak-prose { min-width: 0; color: var(--rp-c-text-1); }
+.ak-prose p { line-height: 1.75; overflow-wrap: anywhere; }
+.ak-prose a, .ak-doc-source a {
+  color: var(--rp-c-link);
+  text-decoration: underline;
+  text-underline-offset: .18em;
+}
+.ak-doc-source {
+  margin-top: 2rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--rp-c-divider);
+  font-size: .875rem;
+}

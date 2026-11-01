@@ -43,12 +43,12 @@ const href = (url: string, text: string) =>
   '<a href="' + escapeAttribute(url) + '">' + escapeText(text) + "</a>";
 const htmlBlock = (html: string) =>
   "<div dangerouslySetInnerHTML={{ __html: " + JSON.stringify(html) + " }} />";
-async function page(pages: string, route: string, title: string, body: string) {
+async function page(pages: string, route: string, title: string, body: string, outline = false) {
   const file = join(pages, decodeURIComponent(route) + ".mdx");
   await mkdir(dirname(file), { recursive: true });
   await writeFile(
     file,
-    "---\ntitle: " + JSON.stringify(title) + "\n---\n\n" + body + "\n",
+    "---\ntitle: " + JSON.stringify(title) + "\noutline: " + outline + "\n---\n\n" + body + "\n",
   );
 }
 const group = (text: string, items: Item[], collapsed = false): Item => ({
@@ -147,30 +147,6 @@ function typeHtml(p: TypePage, types: Map<string, TypePage>) {
   );
 }
 
-function docTree(docs: Doc[], prefix = ""): Item[] {
-  const items: Item[] = [],
-    dirs = new Set<string>();
-  for (const d of docs) {
-    const rest = d.path.slice(prefix.length),
-      slash = rest.indexOf("/");
-    if (slash < 0) items.push({ text: d.title, link: d.route });
-    else dirs.add(rest.slice(0, slash));
-  }
-  for (const dir of dirs) {
-    const path = prefix + dir + "/";
-    items.push(
-      group(
-        dir,
-        docTree(
-          docs.filter((d) => d.path.startsWith(path)),
-          path,
-        ),
-      ),
-    );
-  }
-  return items;
-}
-
 export async function prepareGuide(
   root: string,
   scan: ScanEntry[],
@@ -195,6 +171,10 @@ export async function prepareGuide(
       ),
     )
   ).flat();
+  const introductions = new Map(docs.filter(d => d.path === "README.md").map(d => [d.module, d]));
+  // A package discovered from documentation has no authored architecture annotation.
+  const displayTitle = (m: typeof modules[number]) =>
+    m.component.title === m.package ? introductions.get(m.component.id)?.title ?? m.package : m.component.title;
   const sourceFiles = [
     ...new Set([...types.map((t) => t.file), ...docs.map((d) => d.file)]),
   ];
@@ -231,10 +211,17 @@ export async function prepareGuide(
         "#L" +
         line;
   const docsByFile = new Map(docs.map((d) => [d.file, d]));
-  function markdown(d: Doc, diagram: string, overview = false) {
+  function markdown(d: Doc, diagram: string, overview = false, pageTitle?: string) {
     const md = new MarkdownIt({ html: false });
+    md.renderer.rules.table_open = () => '<div class="rp-table-scroll-container"><table>\n';
+    md.renderer.rules.table_close = () => '</table></div>\n';
+    let sectionCount = 0;
     const seen = new Map<string, number>();
     md.renderer.rules.heading_open = (tokens, i, opts, env, self) => {
+      if (tokens[i]!.level === 0 && /^h[23]$/.test(tokens[i]!.tag)) {
+        tokens[i]!.attrJoin("class", "rp-toc-include");
+        sectionCount++;
+      }
       const text = tokens[i + 1]?.content ?? "";
       const slug = text
         .trim()
@@ -272,18 +259,33 @@ export async function prepareGuide(
     const env = {};
     const tokens = md.parse(d.body, env);
     const parts: string[] = [];
+    // Markdown headings are rendered inside HTML blocks, outside Rspress's MDX heading tree.
+    if (!overview && !tokens.some(t => t.level === 0 && t.type === "heading_open" && t.tag === "h1"))
+      parts.push(htmlBlock("<h1>" + escapeText(d.title) + "</h1>"));
+    if (overview && tokens[0]?.tag === "h1" && tokens[1]?.content === pageTitle)
+      tokens.splice(0, 3);
     let start = 0;
     function flush(end: number) {
       if (end === start) return;
       let html = md.renderer.render(tokens.slice(start, end), md.options, env);
       if (overview)
         html = html.replace(/<h1(.*?)>(.*?)<\/h1>/, "<h2$1>$2</h2>");
-      parts.push(htmlBlock(html));
+      parts.push(htmlBlock('<div class="ak-prose">' + html + "</div>"));
     }
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i]!,
         inline = tokens[i + 1],
         image = inline?.children?.[0];
+      if (t.level === 0 && t.type === "fence") {
+        flush(i);
+        // Preserve literal examples, including code that contains its own fences.
+        const language = t.info.trim().split(/\s+/)[0] ?? "";
+        const width = (t.content.match(/`+/g) ?? []).reduce((n, run) => Math.max(n, run.length + 1), 3);
+        const fence = "`".repeat(width);
+        parts.push(fence + (/^[\w+-]+$/.test(language) ? language : "") + "\n" + t.content + fence);
+        start = i + 1;
+        continue;
+      }
       if (
         t.level !== 0 ||
         t.type !== "paragraph_open" ||
@@ -321,7 +323,7 @@ export async function prepareGuide(
       i += 2;
     }
     flush(tokens.length);
-    return parts.join("\n\n");
+    return { body: parts.join("\n\n"), outline: sectionCount >= 2 };
   }
   for (const d of docs.filter((d) => !d.file.endsWith(".md"))) {
     const dest = join(modelDir, d.file);
@@ -365,14 +367,15 @@ export async function prepareGuide(
     }
   }
   const sidebar: Item[] = [{ text: "工作区概览", link: "/" }];
-  if (modules.length > 1) {
-    const cards = modules
+  const documented = modules.filter(m => docs.some(d => d.module === m.component.id));
+  if (modules.length > 1 || !documented.length) {
+    const cards = documented
       .map(
         (m) =>
           "<li>" +
           href(
             "/modules/" + m.component.id + "/index.html",
-            m.component.title,
+            displayTitle(m),
           ) +
           " · " +
           escapeText(m.package) +
@@ -386,12 +389,12 @@ export async function prepareGuide(
       "/index",
       "架构工作区",
       htmlBlock(
-        "<h1>架构工作区</h1><p>从模块进入接口、协议、设计决策和阅读指南。</p><ul>" +
+        "<h1>架构工作区</h1>" + (cards ? "<p>从模块进入接口、协议、设计决策和阅读指南。</p>" : "<p>暂无模块文档。</p>") + "<ul>" +
           cards +
           "</ul>",
       ) +
         "\n\n" +
-        diagramBlock("../Diagram.jsx", [modules[0]!.component.view]),
+        (documented.length === modules.length && documented.length ? diagramBlock("../Diagram.jsx", [documented[0]!.component.view]) : ""),
     );
   }
   for (const p of types)
@@ -451,30 +454,34 @@ export async function prepareGuide(
         ),
       );
     }
-    const intro = own.find((d) => d.path === "README.md");
+    const intro = introductions.get(m.component.id);
+    const title = displayTitle(m);
     const diagram = relative(
       dirname(join(pages, route + "/index.mdx")),
       join(stage, "Diagram.jsx"),
     );
+    const introduction = intro && markdown(intro, diagram, true, title);
     const overview =
       "<h1>" +
-      escapeText(m.component.title) +
-      "</h1><p>" +
+      escapeText(title) +
+      "</h1><p><code>" + escapeText(m.package) + "</code></p><p>" +
       escapeText(m.component.description) +
       "</p>";
     await page(
       pages,
       route + "/index",
-      m.component.title,
+      title,
       [
         htmlBlock(overview),
-        intro && markdown(intro, diagram, true),
-        htmlBlock("<h2>公开 API</h2><ul>" + apiHtml + "</ul>"),
-        diagramBlock(diagram, [m.component.view]),
+        introduction?.body,
+        apiItems.length > 0 && htmlBlock("<h2>公开 API</h2><ul>" + apiHtml + "</ul>"),
+        m.component.file !== scan[modules.indexOf(m)]!.manifest && diagramBlock(diagram, [m.component.view]),
       ]
         .filter(Boolean)
         .join("\n\n"),
+      introduction?.outline,
     );
+    if (!own.length) continue;
     const moduleTypes = types.filter(
       (t) =>
         t.file.startsWith(dirname(scan[modules.indexOf(m)]!.manifest) + "/") &&
@@ -489,10 +496,11 @@ export async function prepareGuide(
       if (!categories.has(key)) categories.set(key, []);
       categories.get(key)!.push({ text: t.name, link: t.route });
     }
+    const guides = own.filter(d => d !== intro);
     sidebar.push(
-      group(m.component.title, [
-        { text: "模块概览", link: route + "/index" },
-        group("公开 API", apiItems),
+      group(title, [
+        { text: "概览", link: route + "/index" },
+        ...(apiItems.length ? [group("公开 API", apiItems)] : []),
         ...(categories.size
           ? [
               group(
@@ -502,19 +510,22 @@ export async function prepareGuide(
               ),
             ]
           : []),
-        group("设计决策", decisionItems),
-        ...(own.length ? [group("模块文档", docTree(own))] : []),
+        ...(decisionItems.length ? [group("设计决策", decisionItems)] : []),
+        ...guides.map(d => ({ text: d.title, link: d.route })),
       ]),
     );
   }
   for (const d of docs) {
     let body: string;
+    let outline = false;
     if (d.path.endsWith(".md")) {
       const diagram = relative(
         dirname(join(pages, d.route + ".mdx")),
         join(stage, "Diagram.jsx"),
       );
-      body = browserImport + markdown(d, diagram);
+      const rendered = markdown(d, diagram);
+      body = browserImport + rendered.body;
+      outline = rendered.outline;
     } else {
       const diagram = relative(
         dirname(join(pages, d.route + ".mdx")),
@@ -535,7 +546,8 @@ export async function prepareGuide(
       pages,
       d.route,
       d.title,
-      body + "\n\n" + htmlBlock(href("/documents/" + enc(d.file), d.file)),
+      body + "\n\n" + htmlBlock('<footer class="ak-doc-source">' + href("/documents/" + enc(d.file), "查看源文档") + "</footer>"),
+      outline,
     );
   }
   await writeFile(
@@ -545,7 +557,7 @@ export async function prepareGuide(
   return {
     modules: modules.map((m) => ({
       id: m.component.id,
-      title: m.component.title,
+      title: displayTitle(m),
       package: m.package,
       entry: m.entry,
       route: "/modules/" + m.component.id + "/index.html",
