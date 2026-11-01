@@ -3,9 +3,18 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@likec4/core": "1.60.0",
+    "@rspress/core": "2.0.23",
     "likec4": "1.60.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "typedoc": "0.28.20",
     "typescript": "5.9.3",
     "yaml": "2.9.1"
+  },
+  "scripts": {
+    "site:prepare": "likec4 gen react . -o dist/site/Diagram.jsx && node prepare-site.mjs",
+    "site:build": "npm run site:prepare && rspress build",
+    "site:preview": "rspress preview --host 127.0.0.1 --port 4190"
   }
 }

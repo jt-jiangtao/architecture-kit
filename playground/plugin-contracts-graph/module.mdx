@@ -1,0 +1,31 @@
+import { BrowserOnly } from '@rspress/core/runtime';
+import graph from './architecture.graph.json';
+
+# Plugin Contracts
+
+`@action-driver/plugin-contracts` 定义插件与宿主之间的公共契约。宿主加载插件时会校验 manifest，并检查自己是否支持插件声明的 UI 能力。
+
+## 架构视图
+
+<BrowserOnly fallback={<p>正在加载架构图…</p>}>
+  {async () => {
+    const { LikeC4View } = await import('../site/Diagram.jsx');
+    return <LikeC4View viewId="contracts" controls pannable zoomable background="dots" injectFontCss={false} />;
+  }}
+</BrowserOnly>
+
+## 公开 API
+
+<ul>
+  {graph.apis.map(api => <li key={api.id} id={api.name.toLowerCase()}><a href={api.sourceUrl}><code>{api.name}</code></a> · 源码第 {api.line} 行</li>)}
+</ul>
+
+## 决策与行为证据
+
+[插件 UI 协议兼容性](./decision.md) 记录了宿主拒绝不兼容插件的原因，以及对旧格式 manifest 的兼容约束。
+
+<ul>
+  {graph.decision.tests.map(test => <li key={test.name}><a href={test.sourceUrl}>{test.name}</a></li>)}
+</ul>
+
+源码基线 <code>{graph.revision.slice(0, 9)}</code>
