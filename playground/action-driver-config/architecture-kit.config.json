@@ -6,6 +6,7 @@
   },
   "flows": {
     "cleanup": "./config/architecture-kit/cleanup.json",
-    "architecture": "./config/architecture-kit/architecture.json"
+    "architecture": "./config/architecture-kit/architecture.json",
+    "optimize": "./config/architecture-kit/optimize.json"
   }
 }

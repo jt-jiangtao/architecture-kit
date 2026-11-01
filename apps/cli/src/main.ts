@@ -29,7 +29,13 @@ import { runAudit } from '../../../packages/adapters/src/action-driver.js'
 import { renderTasks } from '../../cleanup/src/report.js'
 import { profileOperation } from './profile-operation.js'
 
+import { optimizeOperation } from './optimize-operation.js'
+
 const commands = new Map([
+  [
+    'optimize check',
+    'Collect optimization evidence; --task ID selects a scenario, --from ROUND compares within --run-id ID, --cleanup-from RUN/ROUND imports duplicate candidates.'
+  ],
   [
     'tools install',
     'Provision the pinned native cleanup and quality executables.'
@@ -97,7 +103,7 @@ function help(topic: string) {
         ]
       : []),
     'Example: architecture-kit ' + (list[0]?.[0] ?? 'init'),
-    'Exit: 0 complete, 2 invalid input or incomplete execution, 130 interrupted.'
+    'Exit: 0 complete, 1 measured optimization regression, 2 invalid input or incomplete execution, 130 interrupted.'
   ].join('\n')
 }
 
@@ -147,6 +153,8 @@ export async function main(argv: string[]): Promise<number> {
         fix: { type: 'boolean' },
         list: { type: 'boolean' },
         from: { type: 'string' },
+        task: { type: 'string' },
+        'cleanup-from': { type: 'string' },
         candidate: { type: 'string' },
         review: { type: 'string' },
         only: { type: 'string' },
@@ -168,26 +176,28 @@ export async function main(argv: string[]): Promise<number> {
       throw new Error(
         'Expected a command. See architecture-kit ' +
           (positionals.length === 1 &&
-          ['config', 'cleanup', 'architecture'].includes(cmd)
+          ['config', 'cleanup', 'architecture', 'optimize'].includes(cmd)
             ? cmd + ' '
             : '') +
           '--help'
       )
     const flow = cmd.startsWith('cleanup ')
       ? 'cleanup'
-      : cmd === 'architecture generate'
-        ? 'architecture'
-        : undefined
+      : cmd === 'optimize check'
+        ? 'optimize'
+        : cmd === 'architecture generate'
+          ? 'architecture'
+          : undefined
     if (!flow && (values.json || values['run-id'] !== undefined))
       throw new Error(
-        'Flow options require cleanup check or architecture generate'
+        'Flow options require a cleanup, architecture or optimize command'
       )
     const follow =
       flow === 'cleanup' && !['cleanup check', 'cleanup prepare'].includes(cmd)
     if (
       !follow &&
       [
-        'from',
+        ...(flow === 'optimize' ? [] : ['from']),
         'candidate',
         'review',
         'only',
@@ -205,6 +215,13 @@ export async function main(argv: string[]): Promise<number> {
       ].some((k) => Object.hasOwn(values, k))
     )
       throw new Error('Invalid options for ' + cmd)
+    if (
+      flow !== 'optimize' &&
+      (values.task !== undefined || values['cleanup-from'] !== undefined)
+    )
+      throw new Error('Optimization options require optimize check')
+    if (flow === 'optimize' && values.from && !values['run-id'])
+      throw new Error('--from requires --run-id')
     machine = Boolean(values.json)
     const file = resolve(values.config ?? 'architecture-kit.config.json')
     if (cmd.startsWith('tools ')) {
@@ -265,12 +282,13 @@ export async function main(argv: string[]): Promise<number> {
             ? 'delete-apply'
             : 'delete-preview'
           : operation
-        : flow === 'cleanup'
+        : flow !== 'architecture'
           ? 'check'
           : 'generate'
     )
-    const progress = (message: string) => console.error('[cleanup] ' + message)
-    if (flow === 'cleanup')
+    const progress = (message: string) =>
+      console.error('[' + flow + '] ' + message)
+    if (flow !== 'architecture')
       progress(round.runId + '/' + round.roundId + ' · ' + cmd)
     Object.assign(response, { runId: round.runId, roundId: round.roundId })
     metadata = {
@@ -305,11 +323,27 @@ export async function main(argv: string[]): Promise<number> {
         throw new Error('Configured input changed during run')
       return facts
     }
+    let regressed = false
     let result: unknown,
       report: string,
       complete = true,
       count: number | undefined
-    if (follow) {
+    if (flow === 'optimize') {
+      const checked = await optimizeOperation(
+        config,
+        round,
+        values,
+        controller.signal,
+        progress,
+        async () => (await loadFacts()).inputDigest
+      )
+      ;({ result, report, complete } = checked)
+      regressed = checked.result.tasks.some((t) => t.verdict === 'regressed')
+      metadata.inputDigest = checked.inputDigest
+      Object.assign(response, {
+        tasksPath: relative(root, join(round.output, 'tasks.md'))
+      })
+    } else if (follow) {
       const response = await profileOperation(
         config,
         round,
@@ -373,7 +407,7 @@ export async function main(argv: string[]): Promise<number> {
       status: response.status,
       resultDigest: digest(result)
     })
-    if (flow === 'cleanup')
+    if (flow !== 'architecture')
       progress(
         response.status +
           ' · ' +
@@ -396,7 +430,7 @@ export async function main(argv: string[]): Promise<number> {
             response.reportPath
           ].join(' · ')
     )
-    return complete ? 0 : 2
+    return complete ? (regressed ? 1 : 0) : 2
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (round)

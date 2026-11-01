@@ -1,0 +1,915 @@
+{
+  "enabled": true,
+  "tasks": [
+    {
+      "id": "rollout-oversized-page",
+      "kind": "metric",
+      "title": "超预算请求的一页读取",
+      "target": "packages/runtime-storage/src/rollout/request-event-view.ts",
+      "hypothesis": "首个事件已足够返回时，是否仍派生整个后缀？",
+      "inputs": [
+        "packages/runtime-storage/tests/rollout/oversized-page-cost.test.ts",
+        "packages/runtime-storage/tests/rollout/request-event-cache.test.ts",
+        "vitest.config.ts",
+        "packages/runtime-storage/src/rollout/event-bridge.ts",
+        "packages/runtime-storage/src/rollout/fold.ts"
+      ],
+      "check": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "packages/runtime-storage/tests/rollout/request-event-cache.test.ts"
+      ],
+      "measure": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "packages/runtime-storage/tests/rollout/oversized-page-cost.test.ts"
+      ],
+      "unit": "deriveLine calls/page",
+      "direction": "lower",
+      "tolerance": 0
+    },
+    {
+      "id": "rollout-append-read",
+      "kind": "gate",
+      "title": "长历史追加与增量读取预算",
+      "target": "packages/runtime-storage/src/rollout/request-event-view.ts",
+      "hypothesis": "1000 与 32000 行历史下，长会话中位数应低于 10ms 且不超过短会话两倍",
+      "inputs": [
+        "apps/local-runtime/tests/unit/rollout/hot-path-cost.test.ts"
+      ],
+      "check": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "apps/local-runtime/tests/unit/rollout/hot-path-cost.test.ts"
+      ]
+    },
+    {
+      "id": "shell-raw",
+      "kind": "metric",
+      "title": "桌面启动包 raw",
+      "target": "scripts/measure-loading-performance.mjs",
+      "hypothesis": "核对按需加载后启动包字节数",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "check": [
+        "node",
+        "--test",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "shell",
+        "raw"
+      ],
+      "unit": "bytes",
+      "direction": "lower",
+      "tolerance": 0
+    },
+    {
+      "id": "shell-gzip",
+      "kind": "metric",
+      "title": "桌面启动包 gzip",
+      "target": "scripts/measure-loading-performance.mjs",
+      "hypothesis": "核对按需加载后启动包字节数",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "check": [
+        "node",
+        "--test",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "shell",
+        "gzip"
+      ],
+      "unit": "bytes",
+      "direction": "lower",
+      "tolerance": 0
+    },
+    {
+      "id": "browser-startup-disabled",
+      "kind": "metric",
+      "title": "桌面 fixture startup-disabled",
+      "target": "scripts/measure-loading-performance.mjs",
+      "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "check": [
+        "node",
+        "--test",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "browser",
+        "startup-disabled"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "browser-startup-warm",
+      "kind": "metric",
+      "title": "桌面 fixture startup-warm",
+      "target": "scripts/measure-loading-performance.mjs",
+      "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "check": [
+        "node",
+        "--test",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "browser",
+        "startup-warm"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "browser-first-editor-disabled",
+      "kind": "metric",
+      "title": "桌面 fixture first-editor",
+      "target": "scripts/measure-loading-performance.mjs",
+      "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "check": [
+        "node",
+        "--test",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "browser",
+        "first-editor-disabled"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "browser-editor-reopen",
+      "kind": "metric",
+      "title": "桌面 fixture editor-reopen",
+      "target": "scripts/measure-loading-performance.mjs",
+      "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "check": [
+        "node",
+        "--test",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "browser",
+        "editor-reopen"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "browser-history-scroll",
+      "kind": "metric",
+      "title": "桌面 fixture history-scroll",
+      "target": "scripts/measure-loading-performance.mjs",
+      "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "check": [
+        "node",
+        "--test",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "browser",
+        "history-scroll"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "browser-parser-10k",
+      "kind": "metric",
+      "title": "桌面 fixture parser-10k",
+      "target": "scripts/measure-loading-performance.mjs",
+      "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "check": [
+        "node",
+        "--test",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "browser",
+        "parser-10k"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "browser-parser-100k",
+      "kind": "metric",
+      "title": "桌面 fixture parser-100k",
+      "target": "scripts/measure-loading-performance.mjs",
+      "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "check": [
+        "node",
+        "--test",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "browser",
+        "parser-100k"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "turn-ttft",
+      "kind": "metric",
+      "title": "Turn ttft",
+      "target": "scripts/turn-metrics-report.mjs",
+      "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "check": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "turn",
+        "ttft"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "turn-decode",
+      "kind": "metric",
+      "title": "Turn decode",
+      "target": "scripts/turn-metrics-report.mjs",
+      "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "check": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "turn",
+        "decode"
+      ],
+      "unit": "tokens/s",
+      "direction": "higher",
+      "tolerance": 0.05
+    },
+    {
+      "id": "turn-stream-block",
+      "kind": "metric",
+      "title": "Turn stream-block",
+      "target": "scripts/turn-metrics-report.mjs",
+      "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "check": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "turn",
+        "stream-block"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "turn-harness",
+      "kind": "metric",
+      "title": "Turn harness",
+      "target": "scripts/turn-metrics-report.mjs",
+      "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "check": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "turn",
+        "harness"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "turn-cache-hit",
+      "kind": "metric",
+      "title": "Turn cache-hit",
+      "target": "scripts/turn-metrics-report.mjs",
+      "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "check": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "turn",
+        "cache-hit"
+      ],
+      "unit": "ratio",
+      "direction": "higher",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-capture",
+      "kind": "metric",
+      "title": "Linux 媒体 capture",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "capture"
+      ],
+      "unit": "frames/s",
+      "direction": "higher",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-convert",
+      "kind": "metric",
+      "title": "Linux 媒体 convert",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "convert"
+      ],
+      "unit": "frames/s",
+      "direction": "higher",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-encode",
+      "kind": "metric",
+      "title": "Linux 媒体 encode",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "encode"
+      ],
+      "unit": "frames/s",
+      "direction": "higher",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-packetize",
+      "kind": "metric",
+      "title": "Linux 媒体 packetize",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "packetize"
+      ],
+      "unit": "frames/s",
+      "direction": "higher",
+      "tolerance": 0.05
+    },
+    {
+      "id": "context-budget",
+      "kind": "gate",
+      "title": "上下文裁剪与预算",
+      "target": "docs/development/agent-context-optimization.md",
+      "hypothesis": "检查裁剪后必要上下文和约束是否保留",
+      "inputs": [
+        "packages/agent-runtime/tests/unit/context-budget.test.ts"
+      ],
+      "check": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "packages/agent-runtime/tests/unit/context-budget.test.ts"
+      ]
+    },
+    {
+      "id": "lazy-activation",
+      "kind": "gate",
+      "title": "延迟激活边界",
+      "target": "docs/development/demand-driven-loading.md",
+      "hypothesis": "只有进入相应路径才应激活模块",
+      "inputs": [
+        "tests/architecture/builtin-lazy-activation.test.ts"
+      ],
+      "check": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "tests/architecture/builtin-lazy-activation.test.ts"
+      ]
+    },
+    {
+      "id": "boundary-responsibility",
+      "kind": "review",
+      "title": "维护性、重复保护与职责复核",
+      "target": "docs/governance/coding-rules.md",
+      "hypothesis": "以真实调用方、独立入口和跨 await 生命周期核对重构；用 --cleanup-from 导入逐目标重复候选",
+      "inputs": [],
+      "check": null
+    },
+    {
+      "id": "browser-first-editor-warm",
+      "kind": "metric",
+      "title": "桌面 fixture first-editor",
+      "target": "scripts/measure-loading-performance.mjs",
+      "hypothesis": "保持同浏览器、fixture、缓存状态与输入规模",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "check": [
+        "node",
+        "--test",
+        "tests/unit/scripts/loading-performance.test.mjs"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "browser",
+        "first-editor-warm"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "turn-harness-ratio",
+      "kind": "metric",
+      "title": "Harness 时间占比",
+      "target": "scripts/turn-metrics-report.mjs",
+      "hypothesis": "复用相同模型、请求、缓存和输入 token 规模的 turn 样本",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "check": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "tests/turn-metrics-report.test.ts"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "turn",
+        "harness-ratio"
+      ],
+      "unit": "ratio",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-capture-cpupercent",
+      "kind": "metric",
+      "title": "Linux 媒体 capture cpuPercent",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "capture",
+        "cpuPercent"
+      ],
+      "unit": "%",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-capture-gap-p95",
+      "kind": "metric",
+      "title": "Linux 媒体 capture gap-p95",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "capture",
+        "gap-p95"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-capture-gapsover50ms",
+      "kind": "metric",
+      "title": "Linux 媒体 capture gapsOver50ms",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "capture",
+        "gapsOver50ms"
+      ],
+      "unit": "gaps",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-convert-cpupercent",
+      "kind": "metric",
+      "title": "Linux 媒体 convert cpuPercent",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "convert",
+        "cpuPercent"
+      ],
+      "unit": "%",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-convert-gap-p95",
+      "kind": "metric",
+      "title": "Linux 媒体 convert gap-p95",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "convert",
+        "gap-p95"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-convert-gapsover50ms",
+      "kind": "metric",
+      "title": "Linux 媒体 convert gapsOver50ms",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "convert",
+        "gapsOver50ms"
+      ],
+      "unit": "gaps",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-encode-cpupercent",
+      "kind": "metric",
+      "title": "Linux 媒体 encode cpuPercent",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "encode",
+        "cpuPercent"
+      ],
+      "unit": "%",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-encode-gap-p95",
+      "kind": "metric",
+      "title": "Linux 媒体 encode gap-p95",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "encode",
+        "gap-p95"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-encode-gapsover50ms",
+      "kind": "metric",
+      "title": "Linux 媒体 encode gapsOver50ms",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "encode",
+        "gapsOver50ms"
+      ],
+      "unit": "gaps",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-packetize-cpupercent",
+      "kind": "metric",
+      "title": "Linux 媒体 packetize cpuPercent",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "packetize",
+        "cpuPercent"
+      ],
+      "unit": "%",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-packetize-gap-p95",
+      "kind": "metric",
+      "title": "Linux 媒体 packetize gap-p95",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "packetize",
+        "gap-p95"
+      ],
+      "unit": "ms",
+      "direction": "lower",
+      "tolerance": 0.05
+    },
+    {
+      "id": "media-packetize-gapsover50ms",
+      "kind": "metric",
+      "title": "Linux 媒体 packetize gapsOver50ms",
+      "target": "deploy/linux-desktop/benchmarks/pipeline_benchmark.py",
+      "hypothesis": "在相同桌面负载、协商尺寸及配置下测量各阶段吞吐",
+      "inputs": [
+        "scripts/optimization/evidence.mjs",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py",
+        "deploy/linux-desktop/benchmarks/pipeline_benchmark.py"
+      ],
+      "check": [
+        "python3",
+        "deploy/linux-desktop/tests/test_pipeline_benchmark.py"
+      ],
+      "measure": [
+        "node",
+        "scripts/optimization/evidence.mjs",
+        "media",
+        "packetize",
+        "gapsOver50ms"
+      ],
+      "unit": "gaps",
+      "direction": "lower",
+      "tolerance": 0.05
+    }
+  ],
+  "scanRoots": [
+    "apps",
+    "packages",
+    "plugins",
+    "scripts"
+  ]
+}

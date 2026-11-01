@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import ts from 'typescript'
 test('facts are platform independent and the two flows depend only on ports and shared data', () => {
-  for (const dir of ['packages/facts', 'apps/architecture', 'apps/cleanup']) {
+  for (const dir of ['packages/facts', 'apps/architecture', 'apps/cleanup', 'apps/optimize']) {
     for (const file of readdirSync(join(dir, 'src')).filter((f) =>
       f.endsWith('.ts')
     )) {

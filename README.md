@@ -56,3 +56,15 @@ Use `skill update cleanup-repair` after a CLI upgrade. Open the returned tasksPa
 The CLI supplies Knip, jscpd, dependency-cruiser, syncpack, ast-grep, the unused-import ESLint rule and the versioned analysis runners. Offline scanning uses project Knip, dependency, lint and duplication rules. `tools install` provisions pinned lychee, gitleaks, osv-scanner and Semgrep under the user's Architecture Kit cache (requires curl/tar and uv for provisioning). `tools status` reports availability. Git, Node/pnpm and the consumer's application tests, builds and lint config remain project prerequisites. Reports and the managed recovery directory stay under the configured storage root.
 
 Deletion is restricted to a clean tracked L1 whole file with both reachability and Knip evidence, explicit review, a complete unchanged check, and a saved preview. Public/dynamic/unknown entries and referenced files are blocked. An enabled apply preserves a recovery copy and runs configured delete hooks. The default Action-Driver config has allowApply false.
+
+## Optimize
+
+Action-Driver registers optimization scenarios in `config/architecture-kit/optimize.json`. Run `architecture-kit optimize check --json` for the whole catalog and TS/JS source patterns, or select one task:
+
+```sh
+architecture-kit optimize check --run-id rollout --task rollout-oversized-page --json
+# After the code change, use the actual baseline round ID:
+architecture-kit optimize check --run-id rollout --task rollout-oversized-page --from 001-check --json
+```
+
+Each invocation creates a round with tasks.md, report.md, result.json and evidence per task. Review rows are hypotheses. Gate rows record behavior or budget checks. Metric tasks require both a passing behavior check and a named workload with finite samples. `--cleanup-from RUN/ROUND` adds duplicate candidates from a complete cleanup report matching the current repository snapshot. A comparable regression exits 1, an incomplete execution exits 2. Missing external capture data and Linux-only hardware scenarios report gaps independently. Raw evidence and the CLI receipt distinguish these from measured regressions.

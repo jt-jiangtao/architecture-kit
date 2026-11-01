@@ -25,7 +25,7 @@ const phases = [
 ] as const
 const modes = ['default', 'production'] as const
 const outputs = ['module-index', 'source-index'] as const
-const flowNames = ['cleanup', 'architecture'] as const
+const flowNames = ['cleanup', 'architecture', 'optimize'] as const
 
 export type FlowName = (typeof flowNames)[number]
 export type HookPhase = (typeof phases)[number]
@@ -54,12 +54,34 @@ export interface ArchitectureConfig {
   enabled: boolean
   outputs: (typeof outputs)[number][]
 }
+export interface OptimizeTask {
+  id: string
+  kind: 'review' | 'gate' | 'metric'
+  title: string
+  target: string
+  hypothesis: string
+  inputs: string[]
+  check: string[] | null
+  measure?: string[]
+  unit?: string
+  direction?: 'lower' | 'higher'
+  tolerance?: number
+}
+export interface OptimizeConfig {
+  enabled: boolean
+  tasks: OptimizeTask[]
+  scanRoots: string[]
+}
 export interface ResolvedConfig {
   schemaVersion: 1
   root: string
   inputPaths: string[]
   storage: { root: string; output: string }
-  flows: { cleanup?: CleanupConfig; architecture?: ArchitectureConfig }
+  flows: {
+    cleanup?: CleanupConfig
+    architecture?: ArchitectureConfig
+    optimize?: OptimizeConfig
+  }
 }
 
 const defaultRoot = {
@@ -67,6 +89,7 @@ const defaultRoot = {
   storage: { root: '.architecture-kit', output: 'output' },
   flows: {
     cleanup: './config/architecture-kit/cleanup.json',
+    optimize: './config/architecture-kit/optimize.json',
     architecture: './config/architecture-kit/architecture.json'
   }
 }
@@ -92,6 +115,7 @@ const defaults: Required<ResolvedConfig['flows']> = {
       'delete.end': []
     }
   },
+  optimize: { enabled: true, tasks: [], scanRoots: [] },
   architecture: { enabled: true, outputs: [...outputs] }
 }
 
@@ -362,6 +386,88 @@ async function cleanupConfig(
   }
 }
 
+async function optimizeConfig(
+  inputFile: InputFile,
+  raw: unknown,
+  validateFiles: boolean
+): Promise<OptimizeConfig> {
+  const cfg = fields(raw, 'optimize', ['enabled', 'tasks'], ['scanRoots'])
+  if (!Array.isArray(cfg.tasks)) invalid('optimize.tasks', 'expected array')
+  const ids = new Set<string>(),
+    tasks: OptimizeTask[] = []
+  function argv(value: unknown, label: string) {
+    const args = strings(value, label)
+    if (!args.length) invalid(label, 'empty command')
+    return args
+  }
+  for (const entry of cfg.tasks) {
+    const base = [
+      'id',
+      'kind',
+      'title',
+      'target',
+      'hypothesis',
+      'inputs',
+      'check'
+    ]
+    const row = fields(
+      entry,
+      'task',
+      base,
+      entry?.kind === 'metric'
+        ? ['measure', 'direction', 'unit', 'tolerance']
+        : []
+    )
+    const id = string(row.id, 'task.id')
+    if (!/^[a-z][a-z0-9-]{0,79}$/.test(id) || ids.has(id))
+      invalid(id, 'invalid or duplicate task ID')
+    ids.add(id)
+    const kind = row.kind
+    if (kind !== 'metric' && kind !== 'review' && kind !== 'gate')
+      invalid(id, 'unknown task kind')
+    const task: OptimizeTask = {
+      id,
+      kind,
+      title: string(row.title, 'title'),
+      target: localPath(row.target, 'target'),
+      hypothesis: string(row.hypothesis, 'hypothesis'),
+      inputs: [],
+      check: row.check === null ? null : argv(row.check, 'check')
+    }
+    for (const file of strings(row.inputs, 'inputs'))
+      task.inputs.push(
+        validateFiles
+          ? await inputFile(file, 'task input')
+          : localPath(file, 'task input')
+      )
+    if (!task.check && kind !== 'review')
+      invalid(id, 'requires a behavior check')
+    if (kind === 'metric') {
+      if (row.direction !== 'lower' && row.direction !== 'higher')
+        invalid(id, 'expected lower or higher')
+      if (
+        typeof row.tolerance !== 'number' ||
+        !Number.isFinite(row.tolerance) ||
+        row.tolerance < 0
+      )
+        invalid(id, 'invalid relative tolerance')
+      Object.assign(task, {
+        direction: row.direction,
+        unit: string(row.unit, 'unit'),
+        tolerance: row.tolerance,
+        measure: argv(row.measure, 'measure')
+      })
+    }
+    tasks.push(task)
+  }
+  return {
+    enabled: flag(cfg.enabled, 'optimize.enabled'),
+    tasks,
+    scanRoots: strings(cfg.scanRoots ?? [], 'scanRoots').map((f) =>
+      localPath(f, 'scanRoots')
+    )
+  }
+}
 export async function loadConfig(
   file: string,
   only?: FlowName
@@ -378,7 +484,10 @@ export async function loadConfig(
     const raw = await readJson(
       resolve(root, await inputFile(path, `flows.${name}`))
     )
-    if (name === 'cleanup') flows.cleanup = await cleanupConfig(inputFile, raw)
+    if (name === 'optimize')
+      flows.optimize = await optimizeConfig(inputFile, raw, only === undefined)
+    else if (name === 'cleanup')
+      flows.cleanup = await cleanupConfig(inputFile, raw)
     else {
       const c = fields(raw, 'architecture', ['enabled', 'outputs'])
       flows.architecture = {

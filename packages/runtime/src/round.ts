@@ -10,7 +10,7 @@ import {
 } from 'node:fs/promises'
 import { join, isAbsolute } from 'node:path'
 
-type Flow = 'cleanup' | 'architecture'
+type Flow = 'cleanup' | 'architecture' | 'optimize'
 type Operation = string
 type RoundConfig = { root: string; storage: { root: string; output: string } }
 export type Round = {
