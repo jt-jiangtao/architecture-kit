@@ -13,6 +13,9 @@ const mime: Record<string, string> = {
   ".js": "text/javascript",
   ".css": "text/css",
   ".json": "application/json",
+  ".md": "text/markdown; charset=utf-8",
+  ".c4": "text/plain; charset=utf-8",
+  ".likec4": "text/plain; charset=utf-8",
   ".svg": "image/svg+xml",
   ".woff2": "font/woff2",
   ".png": "image/png",
@@ -88,7 +91,15 @@ export async function watchWorkspace(
           watcher.add(inputFiles(next));
           const code = await build(() => !pending && !stopped);
           if (code !== 0) throw Error("本次构建失败，详见 watch 终端。");
-          const { graph } = await readGraph(config);
+          const { graph, snapshot } = await readGraph(config);
+          if (graph.modules) {
+            const guide = JSON.parse(
+              await readFile(join(snapshot.site, "reading-guide.json"), "utf8"),
+            ) as { types: { file: string }[] };
+            watcher.add([
+              ...new Set(guide.types.map((t) => join(config.root, t.file))),
+            ]);
+          }
           watcher.add(
             [...graph.apis, ...graph.decision.tests].map((row) =>
               join(config.root, row.file),
@@ -150,7 +161,9 @@ export async function watchWorkspace(
       const snapshot = await current(config).catch(() => undefined);
       let body: Buffer | string =
         '<!doctype html><meta charset="utf-8"><p>正在等待第一次成功构建…</p>';
-      const filename = path === "/" ? "index.html" : path.slice(1);
+      const filename = path.endsWith("/")
+        ? path.slice(1) + "index.html"
+        : path.slice(1);
       if (snapshot) {
         const file = resolve(snapshot.site, filename);
         if (

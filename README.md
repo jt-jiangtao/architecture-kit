@@ -71,10 +71,10 @@ Each invocation creates a round with tasks.md, report.md, result.json and eviden
 
 ## Architecture workspace
 
-Configure one module per architecture configuration and storage root. From the consumer repository, run `architecture-kit architecture init-docs` to create the human and agent entry in `docs/architecture/README.md`. Existing files are preserved. Use `--config PATH` on each command for a named configuration.
+Use one architecture configuration for the workspace. Its scan lists public package entry points. Each package may add a docs/architecture/README.md and nested Markdown or LikeC4 files; the site and MCP discover them by repository path. From the consumer repository, run `architecture-kit architecture init-docs` to create the human and agent entry in `docs/architecture/README.md`. Existing files are preserved. Use `--config PATH` on each command for a named configuration.
 
 - `architecture generate` publishes the module website, Markdown and graph from committed source. A complete module round atomically replaces `<storage.root>/architecture/current.json`.
 - `architecture watch --port 4192` serves a loopback preview. Saving package sources, configured inputs or linked test files queues another build. Each preview links to its own local source snapshots. The browser reloads on successful publication and reports a failed build while continuing to serve the last successful version.
-- `architecture mcp` starts a read-only stdio MCP server. Launch it with the same consumer working directory and config. Clients can call `lookup_symbol` (export name or package#export, optional file), `get_component`, or `get_decision` with an exact ID. Responses include the round version, Git revision, preview/commit mode and the relative site directory. A query reads one complete round. Separate clients using the same config share the same published pointer.
+- `architecture mcp` starts a read-only stdio MCP server. Launch it with the same consumer working directory and config. Clients can call `lookup_symbol` (export name or package#export, optional file), `get_component`, or `get_decision` with an exact ID. Responses include the round version, Git revision, preview/commit mode and the relative site directory. A query reads one complete round. Use list_modules, read_doc, and lookup_type to explore module guides, local diagrams and linked type definitions. Separate clients using the same configuration share the same published pointer.
 
 [Action-Driver local harness and agent-runtime example](playground/action-driver-workspace/README.md)

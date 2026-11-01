@@ -105,79 +105,90 @@ export async function moduleGraph(
       source,
       !previewSources,
     );
-    const members = extracted.members.filter(
-      (m) => m.packageRoot === dirname(config.manifest),
-    );
-    const owners = new Set(members.map((m) => m.component));
-    if (owners.size !== 1)
-      throw Error(
-        config.entry + ": expected one primary @architecture component",
+    const modules = [];
+    for (const entry of config.scan) {
+      const manifest = JSON.parse(await source(entry.manifest));
+      const members = extracted.members.filter(
+        (m) => m.packageRoot === dirname(entry.manifest),
       );
-    const owner = extracted.components.find((c) => owners.has(c.id))!;
-    const component = { ...owner, source: owner.file, view: "architecture" };
-    const exports = await publicExports(root, config);
-    const matched = new Set<(typeof members)[number]>();
-    const apis = exports
-      .flatMap((r) => {
-        const loc = r.sources?.[0];
-        const member = members.find(
-          (m) =>
-            m.file === loc?.fileName &&
-            m.line === loc.line &&
-            m.character === loc.character,
-        );
-        if (!member || !loc) return [];
-        matched.add(member);
-        return [
-          {
-            id: manifest.name + "#" + r.name,
-            name: r.name,
-            component: owner.id,
-            file: member.file,
-            line: loc.line,
-            sourceUrl: url(member.file, loc.line),
-            decisionIds: member.decisions,
-          },
-        ];
-      })
-      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    for (const m of members)
-      if (!matched.has(m))
+      const owners = new Set(members.map((m) => m.component));
+      if (owners.size !== 1)
         throw Error(
-          m.file +
-            ":" +
-            m.line +
-            " annotated declaration is not a public export of " +
-            config.entry,
+          config.entry + ": expected one primary @architecture component",
         );
-    const decisions = extracted.decisions
-      .filter((d) => apis.some((a) => a.decisionIds.includes(d.id)))
-      .map((d) => ({
-        id: d.id,
-        title: d.title,
-        body: d.body,
-        status: "documented",
-        source: d.file,
-        line: d.line,
-        affectedApis: apis
-          .filter((a) => a.decisionIds.includes(d.id))
-          .map((a) => a.id),
-        tests: extracted.tests
-          .filter((t) => t.id === d.id)
-          .map((t) => ({ ...t, sourceUrl: url(t.file, t.line) })),
-      }));
-    const decision = decisions[0];
-    if (!decision)
-      throw Error(config.entry + ": no @decision for primary component");
+      const owner = extracted.components.find((c) => owners.has(c.id))!;
+      const component = { ...owner, source: owner.file, view: "architecture" };
+      const exports = await publicExports(root, entry);
+      const matched = new Set<(typeof members)[number]>();
+      const apis = exports
+        .flatMap((r) => {
+          const loc = r.sources?.[0];
+          const member = members.find(
+            (m) =>
+              m.file === loc?.fileName &&
+              m.line === loc.line &&
+              m.character === loc.character,
+          );
+          if (!member || !loc) return [];
+          matched.add(member);
+          return [
+            {
+              id: manifest.name + "#" + r.name,
+              name: r.name,
+              component: owner.id,
+              file: member.file,
+              line: loc.line,
+              character: loc.character,
+              sourceUrl: url(member.file, loc.line),
+              decisionIds: member.decisions,
+            },
+          ];
+        })
+        .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      for (const m of members)
+        if (!matched.has(m))
+          throw Error(
+            m.file +
+              ":" +
+              m.line +
+              " annotated declaration is not a public export of " +
+              config.entry,
+          );
+      const decisions = extracted.decisions
+        .filter((d) => apis.some((a) => a.decisionIds.includes(d.id)))
+        .map((d) => ({
+          id: d.id,
+          title: d.title,
+          body: d.body,
+          status: "documented",
+          source: d.file,
+          line: d.line,
+          affectedApis: apis
+            .filter((a) => a.decisionIds.includes(d.id))
+            .map((a) => a.id),
+          tests: extracted.tests
+            .filter((t) => t.id === d.id)
+            .map((t) => ({ ...t, sourceUrl: url(t.file, t.line) })),
+        }));
+      const decision = decisions[0];
+      if (!decision)
+        throw Error(config.entry + ": no @decision for primary component");
+      modules.push({
+        package: String(manifest.name),
+        entry: entry.entry,
+        component,
+        apis,
+        decision,
+        decisions,
+      });
+    }
+    const primary = modules[0]!;
     return {
       schemaVersion: 1,
       mode: previewSources ? "preview" : "commit",
       revision,
-      package: String(manifest.name),
-      component,
-      apis,
-      decision,
-      decisions,
+      ...primary,
+      modules,
       components: extracted.components,
       relations: extracted.relations,
       modelDsl: extracted.dsl,
@@ -296,6 +307,7 @@ export async function moduleGraph(
     apis,
     decision,
     decisions: [decision],
+    modules: undefined,
     modelDsl: undefined,
     relations: undefined,
     components: undefined,

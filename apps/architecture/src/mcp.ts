@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { relative } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
+import type { prepareGuide } from "./reading-guide.js";
+import { join, relative } from "node:path";
 import { z } from "zod";
 import type { ResolvedConfig } from "../../../packages/config/src/index.js";
 import { readGraph } from "./workspace.js";
@@ -24,28 +26,35 @@ export async function serveMcp(
       },
       async ({ id, file }) => {
         const { snapshot, graph } = await readGraph(config);
-        const api = graph.apis.find(
-          (a) => (a.id === id || a.name === id) && (!file || a.file === file),
-        );
-        const decisions = graph.decisions ?? [graph.decision];
         let value;
-        if (name === "lookup_symbol" && api)
-          value = {
-            api,
-            component: graph.component,
-            decision:
-              decisions.find((d) => d.affectedApis.includes(api.id)) ?? null,
-            decisions: decisions.filter((d) => d.affectedApis.includes(api.id)),
-          };
-        if (name === "get_component" && graph.component.id === id)
-          value = {
-            component: graph.component,
-            apis: graph.apis,
-            decisionId: graph.decision.id,
-            decisions: decisions.map((d) => d.id),
-            relations: graph.relations ?? [],
-          };
-        if (name === "get_decision") value = decisions.find((d) => d.id === id);
+        for (const m of graph.modules ?? [graph]) {
+          const decisions = m.decisions ?? [m.decision];
+          const api = m.apis.find(
+            (a) => (a.id === id || a.name === id) && (!file || a.file === file),
+          );
+          if (name === "lookup_symbol" && api)
+            value = {
+              api,
+              component: m.component,
+              decision:
+                decisions.find((d) => d.affectedApis.includes(api.id)) ?? null,
+              decisions: decisions.filter((d) =>
+                d.affectedApis.includes(api.id),
+              ),
+            };
+          if (name === "get_component" && m.component.id === id)
+            value = {
+              component: m.component,
+              apis: m.apis,
+              decisionId: m.decision.id,
+              decisions: decisions.map((d) => d.id),
+              relations: graph.relations ?? [],
+              documentation: "/modules/" + id + "/index.html",
+            };
+          if (name === "get_decision")
+            value = decisions.find((d) => d.id === id);
+          if (value) break;
+        }
         if (!value)
           return {
             isError: true,
@@ -56,6 +65,86 @@ export async function serveMcp(
           revision: graph.revision,
           mode: graph.mode,
           site: relative(config.root, snapshot.site),
+          value,
+        };
+        return {
+          structuredContent: result,
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
+        };
+      },
+    );
+  }
+  for (const name of ["list_modules", "read_doc", "lookup_type"] as const) {
+    server.registerTool(
+      name,
+      {
+        description:
+          name === "lookup_type"
+            ? "Look up a type or field, e.g. ModelRequest.parameters.thinkingIntensity."
+            : name === "read_doc"
+              ? "Read by repository path or module ID (README.md by default)."
+              : "List modules and documentation paths.",
+        inputSchema: {
+          id: z.string().optional(),
+          field: z.string().optional(),
+        },
+        annotations: { readOnlyHint: true },
+      },
+      async ({ id, field }) => {
+        const { snapshot, graph } = await readGraph(config);
+        const file = join(snapshot.site, "reading-guide.json");
+        if ((await realpath(file)) !== file)
+          throw Error("Unexpected guide path");
+        const guide: Awaited<ReturnType<typeof prepareGuide>> = JSON.parse(
+          await readFile(file, "utf8"),
+        );
+        let value: unknown;
+        if (name === "list_modules") value = guide.modules;
+        if (name === "read_doc" && id) {
+          const module = guide.modules.find(
+            (m) => m.id === id || m.package === id,
+          );
+          value = guide.documents.find(
+            (d) =>
+              d.file === id ||
+              d.file === id.replace(/\/$/, "") + "/README.md" ||
+              (d.module === module?.id && d.path === "README.md"),
+          );
+        }
+        if (name === "lookup_type" && id) {
+          const exact = guide.types.find((t) => t.id === id);
+          const [short, ...parts] = id.split(".");
+          const matches = exact
+            ? [exact]
+            : guide.types.filter((t) => t.name === short);
+          if (matches.length > 1)
+            throw Error(
+              "Ambiguous type: " + matches.map((t) => t.id).join(", "),
+            );
+          const p = matches[0],
+            path = field ?? parts.join(".");
+          const f = p?.fields.find((f) => f.path === path);
+          value =
+            p &&
+            (path
+              ? f && {
+                  ...f,
+                  owner: p.id,
+                  file: p.file,
+                  line: p.line,
+                  href:
+                    p.route + ".html#" + encodeURIComponent("field-" + f.path),
+                }
+              : p);
+        }
+        if (!value)
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: "No match for " + id }],
+          };
+        const result = {
+          version: snapshot.version,
+          revision: graph.revision,
           value,
         };
         return {

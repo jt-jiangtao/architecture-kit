@@ -25,6 +25,7 @@
     "test": "node --test tests/*.test.mjs tests/profile/legacy/*.test.mjs"
   },
   "devDependencies": {
+    "@types/markdown-it": "14.1.2",
     "@types/node": "24.10.1",
     "skills": "1.7.4"
   },
@@ -56,6 +57,7 @@
     "jscpd": "5.4.2",
     "knip": "6.43.0",
     "likec4": "1.60.0",
+    "markdown-it": "14.3.3",
     "prettier": "3.7.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",

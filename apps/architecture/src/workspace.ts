@@ -1,4 +1,4 @@
-import { join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { readFile, realpath, writeFile } from "node:fs/promises";
 import {
   ensureDirectory,
@@ -73,12 +73,38 @@ export async function initDocs(config: ResolvedConfig, configFile: string) {
     "'" +
     relative(config.root, configFile).replaceAll("'", "'\"'\"'") +
     "'";
+  const entrances =
+    "scan" in module
+      ? await Promise.all(
+          module.scan.map(async (s) => {
+            const path = join(
+              dirname(s.manifest),
+              "docs/architecture/README.md",
+            );
+            const found = await realpath(join(config.root, path)).catch((e) => {
+              if (e.code === "ENOENT") return null;
+              throw e;
+            });
+            return (
+              "[" +
+              s.entry +
+              "](" +
+              ref(s.entry) +
+              ")" +
+              (found === join(config.root, path)
+                ? " · [模块阅读入口](" + ref(path) + ")"
+                : "")
+            );
+          }),
+        )
+      : [];
   const text = [
     "# 架构工作区",
     ...("scan" in module
       ? [
           "组件、关系、决策和验证依据从源码及测试注释生成。",
-          ...module.scan.map((s) => "[" + s.entry + "](" + ref(s.entry) + ")"),
+          ...entrances,
+          "Agent 可以用 list_modules 发现文档目录，read_doc 按模块或路径读取，lookup_type 查询类型及字段。",
         ]
       : [
           "组件 ID 为 " + module.component + "。",

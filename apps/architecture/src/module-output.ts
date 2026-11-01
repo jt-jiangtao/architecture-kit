@@ -14,6 +14,7 @@ import {
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+import { prepareGuide } from "./reading-guide.js";
 import { moduleGraph } from "./module-graph.js";
 import type { ArchitectureModule } from "../../../packages/config/src/index.js";
 
@@ -28,19 +29,26 @@ export async function publishModule(
 ) {
   const sources = preview ? new Map<string, string>() : undefined;
   const graph = await moduleGraph(root, config, sources);
-  const index = graph.apis.map((api) => ({
-    file: api.file,
-    symbol: api.name,
-    component: api.component,
-    module: "site/index.html#" + encodeURIComponent(api.name),
-    decisions: graph.decisions
-      .filter((d) => d.affectedApis.includes(api.id))
-      .map((d) =>
-        graph.modelDsl
-          ? "site/decision.html#" + encodeURIComponent(d.id)
-          : "site/decision.html",
-      ),
-  }));
+  const index = (graph.modules ?? [graph]).flatMap((m) =>
+    m.apis.map((api) => ({
+      file: api.file,
+      symbol: api.name,
+      component: api.component,
+      module: graph.modules
+        ? "site/modules/" +
+          m.component.id +
+          "/index.html#" +
+          encodeURIComponent(api.name)
+        : "site/index.html#" + encodeURIComponent(api.name),
+      decisions: m.decisions
+        .filter((d) => d.affectedApis.includes(api.id))
+        .map((d) =>
+          graph.modules
+            ? "site/modules/" + m.component.id + "/decisions/" + d.id + ".html"
+            : "site/decision.html",
+        ),
+    })),
+  );
   const stage = await mkdtemp(join(tmpdir(), "architecture-module-"));
   try {
     const pages = join(stage, "pages");
@@ -67,6 +75,19 @@ export async function publishModule(
     if ("model" in config)
       await cp(join(root, config.model), join(modelDir, "model.c4"));
     else await writeFile(join(modelDir, "model.c4"), graph.modelDsl!);
+    const guide =
+      "scan" in config
+        ? await prepareGuide(
+            root,
+            config.scan,
+            graph,
+            stage,
+            pages,
+            modelDir,
+            sources,
+          )
+        : undefined;
+    if (!guide) await writeFile(join(stage, "sidebar.json"), "{}");
     const json = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
     await writeFile(join(pages, "graph.json"), json(graph));
     const options = { cwd: stage, signal, maxBuffer: 8_000_000 };
@@ -92,14 +113,23 @@ export async function publishModule(
       json(graph),
     );
     await writeFile(join(stage, "site", "source-index.json"), json(index));
+    if (guide) {
+      await writeFile(join(stage, "site", "reading-guide.json"), json(guide));
+      for (const doc of guide.documents) {
+        const target = join(stage, "site", "documents", doc.file);
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, doc.body);
+      }
+    }
     if (graph.modelDsl)
       await writeFile(join(stage, "site", "model.c4"), graph.modelDsl);
     if (sources) {
       const linked = new Set(
-        [...graph.apis, ...graph.decisions.flatMap((d) => d.tests)].map(
-          (row) => row.file,
-        ),
+        (graph.modules ?? [graph])
+          .flatMap((m) => [...m.apis, ...m.decisions.flatMap((d) => d.tests)])
+          .map((row) => row.file),
       );
+      for (const t of guide?.types ?? []) linked.add(t.file);
       for (const file of linked) {
         const page = join(stage, "site", "sources", file + ".html");
         const text = sources.get(file)!;
