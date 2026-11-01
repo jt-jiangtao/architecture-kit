@@ -16,7 +16,7 @@ const template = readFileSync(
 const source = template
   .replaceAll(
     '__ROLLOUT__',
-    relative(dir, resolve('packages/runtime-storage/src/rollout'))
+    relative(dir, resolve('packages/agent/runtime-storage/src/rollout'))
       .split('\\')
       .join('/')
   )

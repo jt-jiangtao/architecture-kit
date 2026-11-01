@@ -1,10 +1,10 @@
 /** Reviewed deletion policy, independent of filesystem/process implementations. */
 export const DENY_PATTERNS = [
-  /^packages\/plugin-runtime\/src\/index\.ts$/,
+  /^packages\/plugins\/plugin-runtime\/src\/index\.ts$/,
   /(^|\/)onlyoffice(?:-|\/)/i,
   /\/gallery(?:\/|$)|WanderingDots|wanderingDotsPath/,
   /cloud-media-hop\.mjs$/,
-  /^packages\/browser-runtime\/src\/(auth|security|backend|cdp|lifecycle|playwright|transport)\//,
+  /^packages\/computer-use\/browser-runtime\/src\/(auth|security|backend|cdp|lifecycle|playwright|transport)\//,
   /^plugins\/office\//,
   /^apps\/local-runtime\/src\/office\//
 ]

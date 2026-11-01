@@ -100,7 +100,7 @@
         "scripts/**/*.{mjs,js,ts}"
       ]
     },
-    "packages/cua": {
+    "packages/computer-use/cua": {
       "entry": [
         "src/index.ts!",
         "src/computer-entry.ts!",
@@ -110,7 +110,7 @@
       ],
       "project": ["src/**/*.{ts,tsx,js,mjs}!", "tests/**/*.{ts,tsx}"]
     },
-    "packages/plugin-contracts": {
+    "packages/plugins/plugin-contracts": {
       "entry": [
         "src/index.ts!",
         "src/host.ts!",
@@ -118,43 +118,43 @@
       ],
       "project": ["src/**/*.{ts,tsx,js,mjs}!"]
     },
-    "packages/cua-repl": {
+    "packages/computer-use/cua-repl": {
       "entry": ["src/index.ts!", "resources/instructions/banner.js!", "**/*.{test,spec}.{ts,tsx}"],
       "project": ["src/**/*.{ts,tsx,js,mjs}!", "resources/instructions/banner.js!"]
     },
-    "packages/browser-runtime": {
+    "packages/computer-use/browser-runtime": {
       "entry": ["src/index.{ts,tsx,js,mjs}!", "src/service.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
       "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
     },
-    "packages/browser-desktop": {
+    "packages/computer-use/browser-desktop": {
       "entry": ["src/index.{ts,tsx,js,mjs}!", "src/service.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
       "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
     },
-    "packages/sky": {
+    "packages/computer-use/sky": {
       "entry": ["src/index.{ts,tsx,js,mjs}!", "src/service.ts!", "src/mac/action-driver-host.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
       "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
     },
-    "packages/configuration": {
+    "packages/foundation/configuration": {
       "entry": ["src/index.{ts,tsx,js,mjs}!", "src/contracts.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
       "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
     },
-    "packages/plugin-runtime": {
+    "packages/plugins/plugin-runtime": {
       "entry": ["src/index.{ts,tsx,js,mjs}!", "src/core.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
       "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
     },
-    "packages/onlyoffice-word": {
+    "packages/office/onlyoffice-word": {
       "entry": ["src/index.{ts,tsx,js,mjs}!", "src/sandbox/word-sandbox-worker.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
       "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
     },
-    "packages/onlyoffice-pdf": {
+    "packages/office/onlyoffice-pdf": {
       "entry": ["src/index.{ts,tsx,js,mjs}!", "src/sandbox/pdf-sandbox-worker.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
       "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
     },
-    "packages/onlyoffice-spreadsheet": {
+    "packages/office/onlyoffice-spreadsheet": {
       "entry": ["src/index.{ts,tsx,js,mjs}!", "src/sandbox/spreadsheet-sandbox-worker.ts!", "**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{mjs,js,ts}"],
       "project": ["src/**/*.{ts,tsx,mjs,js}!", "scripts/**/*.{mjs,js,ts}"]
     },
-    "packages/*": {
+    "packages/**": {
       "entry": [
         "src/index.{ts,tsx,js,mjs}!",
         "**/*.{test,spec}.{ts,tsx}",

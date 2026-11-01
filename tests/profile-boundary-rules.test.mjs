@@ -16,14 +16,14 @@ for (const [from, to, specifier] of [
     '../composition/service'
   ],
   [
-    'packages/session-client/src/request-registry.ts',
-    'packages/session-client/src/renderer-stream-client.ts',
+    'packages/client/session-client/src/request-registry.ts',
+    'packages/client/session-client/src/renderer-stream-client.ts',
     './renderer-stream-client'
   ],
   [
-    'packages/session-client/src/stream-connection.ts',
+    'packages/client/session-client/src/stream-connection.ts',
     'apps/desktop/src/main/host.ts',
-    '../../../apps/desktop/src/main/host'
+    '../../../../apps/desktop/src/main/host'
   ]
 ])
   test('rejects the forbidden dependency from ' + from, async () => {

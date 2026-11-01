@@ -31,6 +31,7 @@ type Item = {
 };
 type Doc = {
   module: string;
+  logicalId?: string;
   file: string;
   path: string;
   route: string;
@@ -61,9 +62,24 @@ async function discover(
   root: string,
   base: string,
   id: string,
+  packageName: string,
+  documents?: string[],
 ): Promise<Doc[]> {
   const found: Doc[] = [];
   const directory = join(root, base, "docs/architecture");
+  if (documents) {
+    for (const file of documents) {
+      const full = join(root, file);
+      if (await realpath(full) !== full) throw Error("Invalid document path: " + file);
+      const path = relative(base, file).split(sep).join("/").replace(/\.architecture-kit(?=\.[^.]+$)/, "");
+      const body = await readFile(full, "utf8");
+      const stem = path.slice(0,-extname(path).length);
+      const kind = path.endsWith(".md") ? "md" : "c4";
+      found.push({module:id, file, path, logicalId:kind+":"+packageName+"/"+stem,
+        route:"/modules/"+id+"/docs/"+enc(path), title:/^#\s+(.+)$/m.exec(body)?.[1] ?? basename(stem), body, views:[]});
+    }
+    return found;
+  }
   if (
     (await realpath(directory).catch((e) => {
       if (e.code === "ENOENT") return null;
@@ -167,7 +183,7 @@ export async function prepareGuide(
   const docs = (
     await Promise.all(
       modules.map((m, i) =>
-        discover(root, dirname(scan[i]!.manifest), m.component.id),
+        discover(root, dirname(scan[i]!.manifest), m.component.id, m.package, scan[i]!.documents),
       ),
     )
   ).flat();
@@ -191,7 +207,7 @@ export async function prepareGuide(
         graph.revision,
         "--",
         ...sourceFiles,
-        ...scan.map((e) => join(dirname(e.manifest), "docs/architecture")),
+        ...scan.flatMap((e) => e.documents ? ["md","likec4","c4"].map(ext => ":(glob)" + (dirname(e.manifest) === "." ? "" : dirname(e.manifest)+"/") + "**/*.architecture-kit." + ext) : [join(dirname(e.manifest), "docs/architecture")]),
       ],
       { cwd: root, stdio: "pipe" },
     );
@@ -203,7 +219,7 @@ export async function prepareGuide(
   const sourceLink = (file: string, line: number) =>
     graph.mode === "preview"
       ? "/sources/" + enc(file) + ".html#L" + line
-      : graph.apis[0]!.sourceUrl.split("/blob/")[0] +
+      : (graph.repository ?? graph.apis[0]!.sourceUrl.split("/blob/")[0]) +
         "/blob/" +
         graph.revision +
         "/" +

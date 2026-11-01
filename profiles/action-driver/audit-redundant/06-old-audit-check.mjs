@@ -5,7 +5,7 @@ import path from 'node:path'
 import { ROOT, exists, walkFiles } from './lib.mjs'
 
 const checks = [
-  { id: 'langsmith-observability.ts', paths: ['packages/agent-runtime'], pattern: /langsmith-observability/ },
+  { id: 'langsmith-observability.ts', paths: ['packages/agent/agent-runtime'], pattern: /langsmith-observability/ },
   { id: 'direct langsmith dep', paths: ['packages', 'apps'], pattern: /["']langsmith["']/ },
   { id: 'model-log-projection', paths: ['packages', 'apps'], pattern: /model-log-projection|modelCalls|model_calls/ },
   { id: 'langsmith-detail-view', paths: ['apps/desktop'], pattern: /langsmith-detail|LangsmithDetail/ },
@@ -23,7 +23,7 @@ function scan(roots, pattern) {
     const top = root.split('/')[0]
     for (const f of walkFiles(top === root ? root : top, { includeTests: true })) {
       if (!f.startsWith(root.replace(/\/$/, '') )) {
-        // if root is packages, all packages ok; if packages/agent-runtime, filter
+        // if root is packages, all packages ok; if packages/agent/agent-runtime, filter
         if (root.includes('/') && !f.startsWith(root)) continue
       } else {
         // ok

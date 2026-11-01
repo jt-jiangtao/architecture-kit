@@ -1,10 +1,10 @@
 const application = '^apps/local-runtime/src/application/'
-const client = '^packages/session-client/src/'
+const client = '^packages/client/session-client/src/'
 const hooks =
   '^apps/desktop/src/renderer/src/hooks/(use-plugin-contributions|plugin-contribution-query)\\.ts$'
 module.exports = {
   forbidden: [
-    { name: 'workspace-no-cycles', severity: 'error', from: { path: '^(apps|packages|plugins)/[^/]+/src/' }, to: { circular: true } },
+    { name: 'workspace-no-cycles', severity: 'error', from: { path: '^(?:(?:apps|plugins)/[^/]+/src/|packages/.+/src/)' }, to: { circular: true } },
     {
       name: 'application-no-composition',
       severity: 'error',

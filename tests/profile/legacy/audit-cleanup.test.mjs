@@ -50,7 +50,9 @@ test('dirty, untracked, symlink and protected targets reject the whole batch', (
     /symlink/
   )
   for (const file of [
-    'packages/onlyoffice-word/src/a.ts',
+    'packages/office/onlyoffice-word/src/a.ts',
+    'packages/plugins/plugin-runtime/src/index.ts',
+    'packages/computer-use/browser-runtime/src/auth/broker.ts',
     'packages/a/../plugin-runtime/src/index.ts'
   ]) {
     assert.throws(

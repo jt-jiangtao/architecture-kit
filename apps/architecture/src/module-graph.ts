@@ -112,11 +112,11 @@ export async function moduleGraph(
         (m) => m.packageRoot === dirname(entry.manifest),
       );
       const owners = new Set(members.map((m) => m.component));
-      if (owners.size !== 1)
+      if (owners.size !== 1 && !(owners.size === 0 && entry.documents?.length))
         throw Error(
           config.entry + ": expected one primary @architecture component",
         );
-      const owner = extracted.components.find((c) => owners.has(c.id))!;
+      const owner = extracted.components.find((c) => owners.has(c.id) || c.file === entry.manifest)!;
       const component = { ...owner, source: owner.file, view: "architecture" };
       const exports = await publicExports(root, entry);
       const matched = new Set<(typeof members)[number]>();
@@ -171,7 +171,7 @@ export async function moduleGraph(
             .map((t) => ({ ...t, sourceUrl: url(t.file, t.line) })),
         }));
       const decision = decisions[0];
-      if (!decision)
+      if (!decision && !entry.documents)
         throw Error(config.entry + ": no @decision for primary component");
       modules.push({
         package: String(manifest.name),
@@ -187,6 +187,7 @@ export async function moduleGraph(
       schemaVersion: 1,
       mode: previewSources ? "preview" : "commit",
       revision,
+      repository,
       ...primary,
       modules,
       components: extracted.components,

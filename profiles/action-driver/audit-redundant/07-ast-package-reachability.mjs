@@ -13,13 +13,13 @@ import {
 } from './lib.mjs'
 
 const TARGETS = [
-  'packages/browser-runtime',
-  'packages/browser-desktop',
-  'packages/cua',
-  'packages/plugin-runtime',
-  'packages/agent-runtime',
-  'packages/codex-plugin-ui',
-  'packages/onlyoffice-pdf',
+  'packages/computer-use/browser-runtime',
+  'packages/computer-use/browser-desktop',
+  'packages/computer-use/cua',
+  'packages/plugins/plugin-runtime',
+  'packages/agent/agent-runtime',
+  'packages/ui/adapters/codex',
+  'packages/office/onlyoffice-pdf',
   'apps/desktop',
   'apps/local-runtime',
   'plugins/office',

@@ -64,12 +64,12 @@ export async function annotations(
           await source(file);
       }
     }
-    const list = execFileSync(
+    const files = pkg.sources ?? execFileSync(
       "git",
       ["ls-files", "-co", "--exclude-standard", "-z", "--", packageRoot],
       { cwd: root, encoding: "utf8", maxBuffer: 16_000_000 },
-    );
-    for (const file of [...new Set(list.split("\0"))].sort()) {
+    ).split("\0");
+    for (const file of [...new Set(files)].sort()) {
       if (!/\.[cm]?tsx?$/.test(file)) continue;
       const disk = join(root, file);
       const stat = await lstat(disk).catch((error) => {
@@ -194,6 +194,12 @@ export async function annotations(
         ts.forEachChild(node, visit);
       }
       visit(sf);
+    }
+    if (pkg.documents?.length && !members.some(m => m.packageRoot === packageRoot)) {
+      const data = JSON.parse(await source(pkg.manifest));
+      const id = "pkg_" + Buffer.from(data.name).toString("hex");
+      if (components.has(id)) throw Error("Duplicate component " + id);
+      components.set(id, { id, title: data.name, description: data.description ?? "", file: pkg.manifest, line: 1 });
     }
   }
   for (const m of members) {

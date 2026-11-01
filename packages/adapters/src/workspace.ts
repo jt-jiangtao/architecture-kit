@@ -15,7 +15,7 @@ const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const inside = (file: string, dir: string) => file === dir || file.startsWith(dir + '/');
 
-async function inputPaths(root: string, storage: string): Promise<string[]> {
+export async function inputPaths(root: string, storage: string): Promise<string[]> {
   const ignored = (file: string) =>
     inside(file, storage) || file.split('/').some((dir) => dir === '.git' || dir === 'node_modules');
   let inGit = false;
@@ -86,7 +86,7 @@ function localImport(file: string, specifier: string, files: Set<string>) {
   return candidates.find((candidate) => files.has(candidate));
 }
 
-function visitExports(
+export function visitExports(
   value: unknown,
   visit: (target: string, subpath: string, chain: string[], pointer: string) => void,
   subpath = '.',
@@ -110,7 +110,7 @@ function visitExports(
 
 // Only a single tsc build supplies a reproducible output-to-input map. Bundlers
 // and compound builds can rewrite those outputs after tsc has finished.
-function compilerOutputs(root: string, dir: string, manifest: Record<string, unknown>, files: Set<string>) {
+export function compilerOutputs(root: string, dir: string, manifest: Record<string, unknown>, files: Set<string>) {
   const outputs = new Map<string, string>();
   const build = record(manifest.scripts) && manifest.scripts.build;
   const match = typeof build === 'string' && /^tsc\s+(?:-p|--project)\s+([\w./-]+)$/.exec(build);
@@ -138,18 +138,23 @@ function compilerOutputs(root: string, dir: string, manifest: Record<string, unk
   return outputs;
 }
 
-export async function collectFacts(root: string, storageRoot: string): Promise<FactSnapshot> {
-  root = path.resolve(root);
-  const storage = path.relative(root, path.resolve(root, storageRoot)).split(path.sep).join('/');
-  const { regular, inputDigest } = await repositoryInputs(root, storage);
-  const text = (file: string) => readFile(path.join(root, file), 'utf8');
-  const workspace = regular.has('pnpm-workspace.yaml') ? parse(await text('pnpm-workspace.yaml')) : null;
+export function workspaceMember(workspace: {packages?: unknown} | null) {
   const selectors: unknown = workspace ? (workspace.packages ?? ['**']) : [];
   if (!Array.isArray(selectors) || selectors.some((key) => typeof key !== 'string'))
     throw new Error('Invalid pnpm workspace packages');
   const patterns = (selectors as string[]).map((key) => key.replace(/^(!?)\.\//, '$1').replace(/\/$/, ''));
   const included = patterns.filter((key) => !key.startsWith('!'));
   const excluded = patterns.filter((key) => key.startsWith('!')).map((key) => key.slice(1));
+  return (dir: string) => dir === '.' || (included.some(p => path.matchesGlob(dir,p)) && !excluded.some(p => path.matchesGlob(dir,p)));
+}
+
+export async function collectFacts(root: string, storageRoot: string): Promise<FactSnapshot> {
+  root = path.resolve(root);
+  const storage = path.relative(root, path.resolve(root, storageRoot)).split(path.sep).join('/');
+  const { regular, inputDigest } = await repositoryInputs(root, storage);
+  const text = (file: string) => readFile(path.join(root, file), 'utf8');
+  const workspace = regular.has('pnpm-workspace.yaml') ? parse(await text('pnpm-workspace.yaml')) : null;
+  const isMember = workspaceMember(workspace);
   const facts: FactSnapshot = {
     schemaVersion: 1,
     inputDigest,
@@ -166,11 +171,7 @@ export async function collectFacts(root: string, storageRoot: string): Promise<F
     if (path.posix.basename(file) !== 'package.json') continue;
     const dir = path.posix.dirname(file);
     owners.set(dir, null);
-    if (
-      dir !== '.' &&
-      (!included.some((p) => path.matchesGlob(dir, p)) || excluded.some((p) => path.matchesGlob(dir, p)))
-    )
-      continue;
+    if (!isMember(dir)) continue;
     const manifest = JSON.parse(await text(file));
     if (!record(manifest) || typeof manifest.name !== 'string' || !manifest.name)
       throw new Error('Missing package name: ' + file);

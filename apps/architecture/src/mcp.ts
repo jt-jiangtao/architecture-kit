@@ -46,7 +46,7 @@ export async function serveMcp(
             value = {
               component: m.component,
               apis: m.apis,
-              decisionId: m.decision.id,
+              decisionId: m.decision?.id,
               decisions: decisions.map((d) => d.id),
               relations: graph.relations ?? [],
               documentation: "/modules/" + id + "/index.html",
@@ -82,7 +82,7 @@ export async function serveMcp(
           name === "lookup_type"
             ? "Look up a type or field, e.g. ModelRequest.parameters.thinkingIntensity."
             : name === "read_doc"
-              ? "Read by repository path or module ID (README.md by default)."
+              ? "Read by repository path or module ID or typed logical ID (md:package/path or c4:package/path)."
               : "List modules and documentation paths.",
         inputSchema: {
           id: z.string().optional(),
@@ -106,10 +106,11 @@ export async function serveMcp(
           );
           value = guide.documents.find(
             (d) =>
-              d.file === id ||
+              d.file === id || d.logicalId === id ||
+              d.file === id.replace(/\/$/, "") + "/README.architecture-kit.md" ||
               d.file === id.replace(/\/$/, "") + "/README.md" ||
               (d.module === module?.id && d.path === "README.md"),
-          );
+          ) ?? (module && graph.modules?.find(m=>m.component.id===module.id)?.component);
         }
         if (name === "lookup_type" && id) {
           const exact = guide.types.find((t) => t.id === id);

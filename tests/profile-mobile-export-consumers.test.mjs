@@ -5,7 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-test('counts an independent mobile import against its workspace export only', t => {
+for (const directory of ['packages/demo', 'packages/ui/workbench/core'])
+ test('counts an independent mobile import against its workspace export only: ' + directory, t => {
   const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'mobile-export-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   const write = (name, body) => {
@@ -13,8 +14,8 @@ test('counts an independent mobile import against its workspace export only', t 
     fs.mkdirSync(path.dirname(file), { recursive: true })
     fs.writeFileSync(file, body)
   }
-  write('packages/demo/package.json', JSON.stringify({ name: '@test/demo', exports: { './native': './src/native.ts' } }))
-  write('packages/demo/src/native.ts', 'export const NativeGlyph = 1; export const LocalOnly = 2')
+  write(`${directory}/package.json`, JSON.stringify({ name: '@test/demo', exports: { './native': './src/native.ts' } }))
+  write(`${directory}/src/native.ts`, 'export const NativeGlyph = 1; export const LocalOnly = 2')
   write('apps/mobile/package.json', JSON.stringify({ name: 'mobile', exports: './src/index.ts' }))
   write('apps/mobile/src/index.ts', "import { NativeGlyph as Glyph } from '@test/demo/native'; export const LocalOnly = Glyph")
   const out = path.join(root, 'artifacts/probe')

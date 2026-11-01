@@ -10,7 +10,7 @@ import { ROOT, exists, walkFiles } from './lib.mjs'
 const tracks = []
 
 // 1) browser-runtime service-* stubs
-const brSrc = 'packages/browser-runtime/src'
+const brSrc = 'packages/computer-use/browser-runtime/src'
 const stubs = []
 if (exists(brSrc)) {
   for (const f of fs.readdirSync(path.join(ROOT, brSrc))) {
@@ -28,7 +28,7 @@ if (exists(brSrc)) {
 // resolve .ts targets
 for (const s of stubs) {
   if (!s.target) continue
-  // target like packages/browser-runtime/src/auth/broker.ts from './auth/broker.js'
+  // target like packages/computer-use/browser-runtime/src/auth/broker.ts from './auth/broker.js'
   if (!exists(s.target)) {
     const alt = s.target.replace(/\.ts$/, '') 
     for (const ext of ['.ts', '.tsx']) {
@@ -40,7 +40,7 @@ for (const s of stubs) {
 tracks.push({
   id: 'browser-runtime-service-stubs',
   truth: 'nested modules under auth/, lifecycle/, backend/, security/, playwright/, …',
-  compatSurface: 'packages/browser-runtime/src/service-*.ts',
+  compatSurface: 'packages/computer-use/browser-runtime/src/service-*.ts',
   stubCount: stubs.length,
   stubsWithTarget: stubs.filter(s => s.targetExists).length,
   sample: stubs.slice(0, 15),
@@ -51,13 +51,13 @@ tracks.push({
 const prFiles = ['catalog-reader.ts', 'process-host.ts']
 const prTrack = {
   id: 'plugin-runtime-to-plugin-host-node',
-  truth: 'packages/plugin-host-node/src/{catalog-reader,process-host}.ts',
-  compatSurface: 'packages/plugin-runtime/src/{catalog-reader,process-host}.ts + index re-exports',
+  truth: 'packages/plugins/plugin-host-node/src/{catalog-reader,process-host}.ts',
+  compatSurface: 'packages/plugins/plugin-runtime/src/{catalog-reader,process-host}.ts + index re-exports',
   files: []
 }
 for (const f of prFiles) {
-  const stub = `packages/plugin-runtime/src/${f}`
-  const truth = `packages/plugin-host-node/src/${f}`
+  const stub = `packages/plugins/plugin-runtime/src/${f}`
+  const truth = `packages/plugins/plugin-host-node/src/${f}`
   prTrack.files.push({
     stub,
     truth,
@@ -117,7 +117,7 @@ tracks.push({
 tracks.push({
   id: 'model-provider-openai-compatible',
   note: 'openai-compatible-adapter.ts is a live provider adapter name, not a dead dual track',
-  file: 'packages/model-provider-runtime/src/openai-compatible-adapter.ts',
+  file: 'packages/agent/model-provider-runtime/src/openai-compatible-adapter.ts',
   refs: whoImports('openai-compatible-adapter').length
 })
 

@@ -79,7 +79,7 @@ export async function initDocs(config: ResolvedConfig, configFile: string) {
           module.scan.map(async (s) => {
             const path = join(
               dirname(s.manifest),
-              "docs/architecture/README.md",
+              s.documents ? "README.architecture-kit.md" : "docs/architecture/README.md",
             );
             const found = await realpath(join(config.root, path)).catch((e) => {
               if (e.code === "ENOENT") return null;

@@ -1,3 +1,4 @@
+import { discoverModules } from './discover.js'
 import {
   flowSources,
   ruleSources,
@@ -67,7 +68,7 @@ export interface LegacyModule {
   adr: string
   repository: string
 }
-export interface ScanEntry { manifest:string; entry:string; tsconfig:string }
+export interface ScanEntry { manifest:string; entry:string; tsconfig:string; documents?:string[]; sources?:string[] }
 export type ArchitectureModule = LegacyModule | (ScanEntry & { scan:ScanEntry[] })
 export interface ArchitectureConfig {
   module?: ArchitectureModule
@@ -558,7 +559,10 @@ export async function loadConfig(
         enabled: flag(c.enabled, 'architecture.enabled'),
         outputs: choices(c.outputs, 'architecture.outputs', outputs)
       }
-      if (architectureModule !== undefined) {
+      if (architectureModule === undefined) {
+        const entries = await discoverModules(root, storage.root, inputFile)
+        if (entries.length) flows.architecture.module = { ...entries[0]!, scan: entries }
+      } else {
         if (
           typeof architectureModule === 'object' &&
           architectureModule !== null

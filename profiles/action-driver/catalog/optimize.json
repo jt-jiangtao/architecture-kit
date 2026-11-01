@@ -5,21 +5,21 @@
       "id": "rollout-oversized-page",
       "kind": "metric",
       "title": "超预算请求的一页读取",
-      "target": "packages/runtime-storage/src/rollout/request-event-view.ts",
+      "target": "packages/agent/runtime-storage/src/rollout/request-event-view.ts",
       "hypothesis": "首个事件已足够返回时，是否仍派生整个后缀？",
       "inputs": [
         "profile:action-driver/probes/oversized-page.fixture.ts",
-        "packages/runtime-storage/tests/rollout/request-event-cache.test.ts",
+        "packages/agent/runtime-storage/tests/rollout/request-event-cache.test.ts",
         "vitest.config.ts",
-        "packages/runtime-storage/src/rollout/event-bridge.ts",
-        "packages/runtime-storage/src/rollout/fold.ts",
+        "packages/agent/runtime-storage/src/rollout/event-bridge.ts",
+        "packages/agent/runtime-storage/src/rollout/fold.ts",
         "profile:action-driver/probes/vitest-probe.mjs"
       ],
       "check": [
         "node",
         "node_modules/vitest/vitest.mjs",
         "run",
-        "packages/runtime-storage/tests/rollout/request-event-cache.test.ts"
+        "packages/agent/runtime-storage/tests/rollout/request-event-cache.test.ts"
       ],
       "measure": [
         "node",
@@ -34,7 +34,7 @@
       "id": "rollout-append-read",
       "kind": "gate",
       "title": "长历史追加与增量读取预算",
-      "target": "packages/runtime-storage/src/rollout/request-event-view.ts",
+      "target": "packages/agent/runtime-storage/src/rollout/request-event-view.ts",
       "hypothesis": "1000 与 32000 行历史下，长会话中位数应低于 10ms 且不超过短会话两倍",
       "inputs": [
         "profile:action-driver/probes/hot-path-cost.fixture.ts",
@@ -512,13 +512,13 @@
       "target": "docs/development/agent-context-optimization.md",
       "hypothesis": "检查裁剪后必要上下文和约束是否保留",
       "inputs": [
-        "packages/agent-runtime/tests/unit/context-budget.test.ts"
+        "packages/agent/agent-runtime/tests/unit/context-budget.test.ts"
       ],
       "check": [
         "node",
         "node_modules/vitest/vitest.mjs",
         "run",
-        "packages/agent-runtime/tests/unit/context-budget.test.ts"
+        "packages/agent/agent-runtime/tests/unit/context-budget.test.ts"
       ]
     },
     {

@@ -117,16 +117,24 @@ export function flattenExports(exportsField, pkgDir) {
 
 export function listWorkspacePackages() {
   const pkgs = []
+  function visit(dir, root) {
+    const pj = `${dir}/package.json`
+    if (exists(pj)) {
+      const pkg = readJson(pj)
+      pkgs.push({ dir, name: pkg.name || path.posix.basename(dir), pkg, kind: root.slice(0, -1) })
+      return
+    }
+    if (root !== 'packages') return
+    for (const entry of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+      if (entry.isDirectory() && !shouldSkipDir(entry.name)) visit(`${dir}/${entry.name}`, root)
+    }
+  }
   for (const root of ['apps', 'packages', 'plugins']) {
     if (!exists(root)) continue
-    for (const name of fs.readdirSync(path.join(ROOT, root))) {
-      if (shouldSkipDir(name)) continue
-      if (root === 'apps' && name === 'mobile') continue // workspace excludes mobile
-      const dir = `${root}/${name}`
-      const pj = `${dir}/package.json`
-      if (!exists(pj)) continue
-      const pkg = readJson(pj)
-      pkgs.push({ dir, name: pkg.name || name, pkg, kind: root.slice(0, -1) })
+    for (const entry of fs.readdirSync(path.join(ROOT, root), { withFileTypes: true })) {
+      if (!entry.isDirectory() || shouldSkipDir(entry.name)) continue
+      if (root === 'apps' && entry.name === 'mobile') continue
+      visit(`${root}/${entry.name}`, root)
     }
   }
   return pkgs

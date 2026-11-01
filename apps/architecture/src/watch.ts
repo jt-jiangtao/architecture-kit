@@ -101,7 +101,7 @@ export async function watchWorkspace(
             ]);
           }
           watcher.add(
-            [...graph.apis, ...graph.decision.tests].map((row) =>
+            [...graph.apis, ...graph.decisions.flatMap(d=>d.tests)].map((row) =>
               join(config.root, row.file),
             ),
           );
