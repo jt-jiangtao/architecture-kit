@@ -1,0 +1,11 @@
+{
+  "name": "plugin-contracts-graph-pilot",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "likec4": "1.60.0",
+    "typedoc": "0.28.20",
+    "typescript": "5.9.3",
+    "yaml": "2.9.1"
+  }
+}

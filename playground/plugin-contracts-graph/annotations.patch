@@ -1,0 +1,20 @@
+--- a/packages/plugin-contracts/src/index.ts
++++ b/packages/plugin-contracts/src/index.ts
+@@ -23,7 +23,7 @@
+  * Host UI protocol that carries view and menu contributions. A manifest declaring them must be
+  * installed on a host that advertises at least this protocol, so an older host fails explicitly
+  * instead of silently dropping interface entries.
+- */
++ * @architecture pluginContracts */
+ export const PLUGIN_UI_PROTOCOL_VERSION = 2
+ const identity = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/)
+ const contributionId = z.string().regex(/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/)
+@@ -119,7 +119,7 @@
+   protocol: number; token: string; requestId: string; method: string; payload: Json
+ }
+ export type PluginHostIdentity = { sdk: string; platform: string; uiProtocol?: number; publicServicesProtocol?: number; capabilityStreamProtocol?: number; resourceOpenersProtocol?: number; contextProvidersProtocol?: number; declarativeUiProtocol?: number; kind?: PlacementLocation }
+-export function validateManifest(value: unknown, host: PluginHostIdentity): PluginManifest {
++/** @architecture pluginContracts */ export function validateManifest(value: unknown, host: PluginHostIdentity): PluginManifest {
+   const result = manifestSchema.safeParse(value)
+   if (!result.success) throw new PluginError('INVALID_MANIFEST', result.error.message)
+   const manifest = result.data

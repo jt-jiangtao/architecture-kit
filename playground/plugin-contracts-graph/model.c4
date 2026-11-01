@@ -1,0 +1,13 @@
+specification {
+  element component
+}
+model {
+  pluginContracts = component 'Plugin Contracts' {
+    description 'Public contracts for the Action-Driver plugin host, including manifest validation and UI protocol compatibility.'
+  }
+}
+views {
+  view contracts {
+    include *
+  }
+}
