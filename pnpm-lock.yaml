@@ -240,6 +240,34 @@ importers:
         specifier: 1.7.4
         version: 1.7.4
 
+  apps/project-panel:
+    dependencies:
+      '@action-driver/codex-tokens':
+        specifier: link:../../../action-driver/packages/ui/codex-tokens
+        version: link:../../../action-driver/packages/ui/codex-tokens
+      '@action-driver/ui-components':
+        specifier: link:../../../action-driver/packages/ui/components
+        version: link:../../../action-driver/packages/ui/components
+      markdown-it:
+        specifier: 14.3.3
+        version: 14.3.3
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: 19.3.0
+        version: 19.3.0(react@19.3.0)
+    devDependencies:
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.3.0)
+      vite:
+        specifier: 8.3.5
+        version: 8.3.5(@types/node@24.10.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+
 packages:
 
   '@ast-grep/cli-darwin-arm64@0.51.0':
@@ -1125,6 +1153,11 @@ packages:
 
   '@types/node@24.10.1':
     resolution: {integrity: sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ==}
+
+  '@types/react-dom@19.2.3':
+    resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
+    peerDependencies:
+      '@types/react': ^19.2.0
 
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
@@ -3780,6 +3813,10 @@ snapshots:
   '@types/node@24.10.1':
     dependencies:
       undici-types: 7.16.0
+
+  '@types/react-dom@19.2.3(@types/react@19.3.0)':
+    dependencies:
+      '@types/react': 19.3.0
 
   '@types/react@19.3.0':
     dependencies:

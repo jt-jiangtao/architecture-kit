@@ -27,6 +27,10 @@ pnpm skills:list
 
 See [pre-research](docs/pre-research.md) for the intended framework architecture and phased adoption.
 
+## 项目执行面板
+
+使用 [项目执行面板](apps/project-panel/README.md) 查看项目内各 OpenSpec 的清单进度、执行状态和卡点。从相邻的 Action-Driver 根运行 `pnpm project:panel`。
+
 ## Project CLI
 
 Build with Node >=22.20, `pnpm install --frozen-lockfile` and `pnpm build`. Action-Driver declares one local integration, `architecture-kit: link:../architecture-kit`. Keep the two checkouts adjacent until the CLI is published. From the Action-Driver root:

@@ -9,6 +9,7 @@
     "node": ">=22.20.0"
   },
   "scripts": {
+    "project:panel": "pnpm build && pnpm --filter @architecture-kit/project-panel build && pnpm --filter @architecture-kit/project-panel start",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "skills:list": "skills list",
