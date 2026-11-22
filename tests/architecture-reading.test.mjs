@@ -10,7 +10,27 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { prepareGuide } from "../dist/apps/architecture/src/reading-guide.js";
+import { collectReadingGuide } from "@architecture-kit/analyzers";
+import { renderReadingGuidePages } from "@architecture-kit/renderers";
+
+async function prepareGuide(root, scan, graph, stage, pages, model, sources) {
+  const guide = await collectReadingGuide(
+    root,
+    scan,
+    graph,
+    sources,
+    undefined,
+    model,
+  );
+  return renderReadingGuidePages({
+    root,
+    scan,
+    graph,
+    guide,
+    stage,
+    pages,
+  });
+}
 
 test("module README, C4 views and nested protocol fields have navigable paths", async (t) => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "reading-guide-")));
@@ -133,4 +153,66 @@ test("module README, C4 views and nested protocol fields have navigable paths", 
   await assert.rejects(run(), /unresolved embedded LikeC4 view views\/example.c4#missing/);
   await put("sample/docs/architecture/README.md", "[Missing](absent.md)");
   await assert.rejects(run(), /missing documentation link absent.md/);
+});
+
+test("root package types appear in typeCatalog and module sidebar classification", async (t) => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "root-pkg-guide-")));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const stage = join(root, "build"),
+    pages = join(stage, "pages"),
+    model = join(stage, "model");
+  await mkdir(join(root, "src"), { recursive: true });
+  await mkdir(join(root, "docs/architecture"), { recursive: true });
+  await mkdir(model, { recursive: true });
+  await writeFile(join(root, "package.json"), JSON.stringify({ name: "root-pkg" }));
+  await writeFile(join(root, "tsconfig.json"), "{}");
+  await writeFile(
+    join(root, "src/index.ts"),
+    "export interface Options { retries: number }\nexport function start(opts: Options): void {}",
+  );
+  await writeFile(join(root, "docs/architecture/README.md"), "# Root Guide\n");
+  await writeFile(
+    join(model, "model.c4"),
+    "specification { element component }\nmodel { rootpkg = component 'Root' }\nviews { view overview { include * } }",
+  );
+  const entry = {
+    entry: "src/index.ts",
+    manifest: "package.json",
+    tsconfig: "tsconfig.json",
+  };
+  const mod = {
+    package: "root-pkg",
+    entry: entry.entry,
+    component: {
+      id: "rootpkg",
+      title: "Root",
+      file: entry.manifest,
+      description: "Root package",
+      view: "overview",
+    },
+    apis: [
+      {
+        id: "root-pkg#start",
+        name: "start",
+        file: "src/index.ts",
+        line: 2,
+        sourceUrl: "/source",
+      },
+    ],
+    decisions: [],
+  };
+  const result = await prepareGuide(
+    root,
+    [entry],
+    { ...mod, mode: "preview", modules: [mod] },
+    stage,
+    pages,
+    model,
+    new Map(),
+  );
+  assert.ok(result.types.some((item) => item.name === "Options"));
+  const sidebar = JSON.parse(await readFile(join(stage, "sidebar.json"), "utf8"))["/"];
+  const modGroup = sidebar.find((item) => item.text === "Root");
+  const typesGroup = modGroup.items.find((item) => item.text === "类型与协议");
+  assert.ok(typesGroup, "Expected 类型与协议 sidebar group for root package");
 });

@@ -7,7 +7,7 @@ import {
   buildEvidenceGap,
   extractCounterexample,
   normalizeJscpdDuplicates
-} from '../../../profiles/action-driver/audit-redundant/cleanup-pipeline.mjs'
+} from '@architecture-kit/analyzers'
 
 const snapshot = {
   digest: 'snapshot-a',

@@ -1,7 +1,11 @@
-import { Checkbox } from "@action-driver/ui-components/codex/checkbox";
-import { ProgressRing } from "@action-driver/ui-components/codex/progress-ring";
-import { DisclosureTrigger } from "@action-driver/ui-components/codex/disclosure-trigger";
-import { ExpandableContent } from "@action-driver/ui-components/codex/expandable-content";
+import {
+  Badge,
+  Button,
+  Checkbox,
+  DisclosureTrigger,
+  ExpandableContent,
+  ProgressRing,
+} from "./primitives";
 import {
   useCallback,
   useEffect,
@@ -10,8 +14,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { Badge } from "@action-driver/ui-components/codex/badge";
-import { Button } from "@action-driver/ui-components/codex/button";
 import type {
   Change,
   RuntimeRun,
@@ -25,7 +27,7 @@ const doneCount = (change: Change) =>
   change.tasks.filter((task) => task.done).length;
 
 function displayName(id: string) {
-  const name = id.replace(/^act-\d+-/, "").replaceAll("-", " ");
+  const name = id.replace(/^[a-z]{2,10}-\d+-/i, "").replaceAll("-", " ");
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
@@ -601,7 +603,7 @@ export function Panel({ source }: { source: ProjectSource }) {
                 size="desktop"
                 label={`显示已完成（${completed.length}）`}
                 checked={showCompleted}
-                onCheckedChange={(value) => setShowCompleted(value === true)}
+                onCheckedChange={(value: boolean) => setShowCompleted(value)}
               />
             </div>
           )}
@@ -643,7 +645,7 @@ export function Panel({ source }: { source: ProjectSource }) {
                   {change.name || displayName(change.id)}
                 </span>
                 <small>
-                  {change.id.match(/^act-\d+/)?.[0].toUpperCase()}{" "}
+                  {change.id.match(/^[a-z]{2,10}-\d+/i)?.[0].toUpperCase()}{" "}
                   {change.error ||
                     doneCount(change) + " / " + change.tasks.length}
                   {states.map((state) => (

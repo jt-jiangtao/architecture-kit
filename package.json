@@ -10,8 +10,12 @@
   },
   "scripts": {
     "project:panel": "pnpm build && pnpm --filter @architecture-kit/project-panel build && pnpm --filter @architecture-kit/project-panel start",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit && tsc --noEmit -p apps/project-panel/tsconfig.ui.json",
+    "clean": "tsc -b --clean",
+    "lint": "eslint bin scripts tests eslint.config.mjs",
+    "format:check": "prettier --check \"packages/**/*.ts\" \"apps/**/*.ts\" \"apps/**/*.tsx\"",
+    "check:boundaries": "node --test tests/boundaries.test.mjs",
     "skills:list": "skills list",
     "skills:check": "skills check",
     "skills:restore": "skills experimental_install",
@@ -35,17 +39,36 @@
     "architecture-kit": "./bin/architecture-kit.mjs"
   },
   "exports": {
-    ".": "./dist/src/index.js",
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./core-ir": {
+      "types": "./packages/core-ir/dist/index.d.ts",
+      "default": "./packages/core-ir/dist/index.js"
+    },
+    "./config": {
+      "types": "./packages/config/dist/index.d.ts",
+      "default": "./packages/config/dist/index.js"
+    },
     "./profiles/action-driver/*": "./profiles/action-driver/*"
   },
   "files": [
     "bin",
     "dist",
+    "packages",
+    "apps/cli/dist",
+    "apps/mcp-server/dist",
+    "apps/dev-server/dist",
+    "apps/project-panel/dist",
+    "apps/project-panel/dist-server",
     "profiles",
-    "skills",
-    "apps/architecture/site"
+    "skills"
   ],
   "dependencies": {
+    "@architecture-kit/cli": "workspace:*",
+    "@architecture-kit/config": "workspace:*",
+    "@architecture-kit/core-ir": "workspace:*",
     "@ast-grep/cli": "0.51.0",
     "@likec4/core": "1.60.0",
     "@modelcontextprotocol/sdk": "1.32.2",
@@ -55,14 +78,20 @@
     "entities": "6.0.1",
     "eslint": "9.39.5",
     "eslint-plugin-unused-imports": "4.4.1",
+    "get-tsconfig": "4.14.3",
+    "inversify": "8.3.0",
     "jscpd": "5.4.2",
     "knip": "6.43.0",
     "likec4": "1.60.0",
     "markdown-it": "14.3.3",
+    "oxc-parser": "0.155.0",
     "prettier": "3.7.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "reflect-metadata": "0.2.2",
+    "resolve-pkg-maps": "1.0.0",
     "syncpack": "15.3.3",
+    "tar": "7.5.22",
     "typedoc": "0.28.20",
     "typescript": "5.9.3",
     "yaml": "2.9.1",

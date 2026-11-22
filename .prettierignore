@@ -1,0 +1,10 @@
+dist/
+dist-server/
+node_modules/
+artifacts/
+workbench/
+docs/
+coverage/
+pnpm-lock.yaml
+skills-lock.json
+*.min.*

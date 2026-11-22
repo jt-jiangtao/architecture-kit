@@ -27,6 +27,20 @@ pnpm skills:list
 
 See [pre-research](docs/pre-research.md) for the intended framework architecture and phased adoption.
 
+## Workspace Monorepo & DI Architecture
+
+Architecture Kit is organized as a 5-level acyclic pnpm workspace Monorepo (`tsconfig.base.json` + TypeScript Project References `tsc -b`), enforced by `tests/boundaries.test.mjs` and `dependency-cruiser.config.cjs`, and distributed as a single public CLI package (`bin/architecture-kit.mjs`):
+
+- **Level 0 (`@architecture-kit/core-ir`)**: Pure TypeScript & Zod v4 intermediate representation (`FactSnapshot`, `ArchitectureGraph`, `CleanupResult`, `OptimizeResult`), immutable `normalizeFacts()`, and `ARCHITECTURE_KIT_VERSION` (zero `node:*` imports).
+- **Level 1 (`@architecture-kit/ports`)**: Pure hexagonal ports (`ProcessPort`, `CleanupPorts`, `OptimizePorts`, `ArchitectureCollectorPort`, `ArchitectureRendererPort`), `ProfilePlugin` / `ProfileRegistry` SPI, and typed `DI_TOKENS` (zero `node:*` imports).
+- **Level 2 (`@architecture-kit/runtime`, `@architecture-kit/config`)**: Unified runtime primitives (`paths`, `lock`, `digest`, `process`, `round`, `architecture-pointer`) + `runtimeContainerModule`, and Zod v4 configuration loader (`generateConfigJsonSchema()`, `createProfileRegistry()`).
+- **Level 3 (`@architecture-kit/analyzers`, `@architecture-kit/renderers`, `@architecture-kit/flow-architecture`, `@architecture-kit/flow-cleanup`, `@architecture-kit/flow-optimize`)**:
+  - `@architecture-kit/analyzers`: Workspace & `#imports`/`paths` analysis (`get-tsconfig`, `resolve-pkg-maps`), AST reachability & 12-stage redundant-code audit (`oxc-parser`, TypeScript Compiler API), local quality engine, Knip runner, and `analyzersContainerModule`.
+  - `@architecture-kit/renderers`: Pure IR renderers (`markdown`, `llms.txt` / `llms-full.txt`, Rspress static site, SARIF 2.1.0) and `renderersContainerModule`.
+  - `@architecture-kit/flow-*`: Pure flow orchestrators (`flow-architecture`, `flow-cleanup` sharing `FactSnapshot` & `KnipRun[]` with profile audit, `flow-optimize`).
+- **Level 4 (`@architecture-kit/profile-action-driver`, `@architecture-kit/mcp-server`, `@architecture-kit/dev-server`)**: `actionDriverProfile` plugin (`actionDriverContainerModule`, native tool provisioning via Node `fetch` + SHA-256 + `tar`), read-only stdio MCP server, and loopback preview watcher.
+- **Level 5 (`@architecture-kit/cli`, `@architecture-kit/project-panel`)**: CLI composition root using **InversifyJS (`inversify@8.3.0`)** hierarchical containers (`createAppContainer()` root singletons + `createRoundScope()` per-round child containers), and the standalone decoupled `project-panel` web & server application.
+
 ## 项目执行面板
 
 使用 [项目执行面板](apps/project-panel/README.md) 查看项目内各 OpenSpec 的清单进度、执行状态和卡点。从相邻的 Action-Driver 根运行 `pnpm project:panel`。
@@ -78,6 +92,7 @@ Each invocation creates a round with tasks.md, report.md, result.json and eviden
 Use one architecture configuration for the workspace. Its scan lists public package entry points. Each package may add a docs/architecture/README.md and nested Markdown or LikeC4 files; the site and MCP discover them by repository path. From the consumer repository, run `architecture-kit architecture init-docs` to create the human and agent entry in `docs/architecture/README.md`. Existing files are preserved. Use `--config PATH` on each command for a named configuration.
 
 - `architecture generate` publishes the module website, Markdown and graph from committed source. A complete module round atomically replaces `<storage.root>/architecture/current.json`.
+- Module export conversion runs in sequential isolated TypeDoc processes, preserving configuration, entry and conversion checks. Each process exits before the next module starts; cancellation or a failed/incomplete worker aborts publication. Type catalogs with no starting APIs validate their configuration without creating a TypeScript Program. The default heap limit is unchanged; a single module must still fit in it.
 - `architecture watch --port 4192` serves a loopback preview. Saving package sources, configured inputs or linked test files queues another build. Each preview links to its own local source snapshots. The browser reloads on successful publication and reports a failed build while continuing to serve the last successful version.
 - `architecture mcp` starts a read-only stdio MCP server. Launch it with the same consumer working directory and config. Clients can call `lookup_symbol` (export name or package#export, optional file), `get_component`, or `get_decision` with an exact ID. Responses include the round version, Git revision, preview/commit mode and the relative site directory. A query reads one complete round. Use list_modules, read_doc, and lookup_type to explore module guides, local diagrams and linked type definitions. Separate clients using the same configuration share the same published pointer.
 

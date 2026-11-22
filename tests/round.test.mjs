@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readFile, symlink, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { openRound, finishRound } from '../dist/packages/runtime/src/round.js'
+import { openRound, finishRound } from '@architecture-kit/runtime'
 
 test('concurrent rounds preserve previous evidence and honor the configured output', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'kit-round-'))
@@ -38,7 +38,7 @@ test('concurrent rounds preserve previous evidence and honor the configured outp
 
 test('a hook cannot publish reports through a replaced output directory', async (t) => {
   const { publishResults } =
-    await import('../dist/packages/runtime/src/round.js')
+    await import('@architecture-kit/runtime')
   const { rename } = await import('node:fs/promises')
   const root = await mkdtemp(join(tmpdir(), 'kit-swap-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -54,4 +54,24 @@ test('a hook cannot publish reports through a replaced output directory', async 
   await symlink(victim, r.output)
   await assert.rejects(() => publishResults(r, {}, 'report'))
   await assert.rejects(() => readFile(join(victim, 'report.md')))
+})
+
+test('acquireLock recovers stale dead-PID lock and rejects live-PID lock', async (t) => {
+  const { acquireLock, releaseLock } = await import('@architecture-kit/runtime')
+  const { hostname } = await import('node:os')
+  const { writeFile } = await import('node:fs/promises')
+  const root = await mkdtemp(join(tmpdir(), 'kit-lock-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const lock = join(root, '.delete-lock')
+
+  await mkdir(lock)
+  await writeFile(
+    join(lock, 'owner.json'),
+    JSON.stringify({ pid: 999999999, hostname: hostname(), createdAt: Date.now() })
+  )
+  await acquireLock(lock)
+  await assert.rejects(() => acquireLock(lock), /active process/)
+  await releaseLock(lock)
+  await acquireLock(lock)
+  await releaseLock(lock)
 })

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   extractCleanupDebtMarkers,
   validateCleanupDebt
-} from '../../../profiles/action-driver/audit-redundant/cleanup-debt.mjs'
+} from '@architecture-kit/analyzers/audit/debt'
 
 function registry(overrides = {}) {
   return {

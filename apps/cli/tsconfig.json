@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../../packages/core-ir" },
+    { "path": "../../packages/ports" },
+    { "path": "../../packages/runtime" },
+    { "path": "../../packages/config" },
+    { "path": "../../packages/analyzers" },
+    { "path": "../../packages/renderers" },
+    { "path": "../../packages/flow-architecture" },
+    { "path": "../../packages/flow-cleanup" },
+    { "path": "../../packages/flow-optimize" },
+    { "path": "../../packages/profile-action-driver" },
+    { "path": "../mcp-server" },
+    { "path": "../dev-server" }
+  ]
+}

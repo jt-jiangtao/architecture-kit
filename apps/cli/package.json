@@ -1,0 +1,35 @@
+{
+  "name": "@architecture-kit/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "default": "./dist/main.js"
+    },
+    "./skills": {
+      "types": "./dist/skills.d.ts",
+      "default": "./dist/skills.js"
+    },
+    "./container": {
+      "types": "./dist/container.d.ts",
+      "default": "./dist/container.js"
+    }
+  },
+  "dependencies": {
+    "@architecture-kit/core-ir": "workspace:*",
+    "@architecture-kit/ports": "workspace:*",
+    "@architecture-kit/runtime": "workspace:*",
+    "@architecture-kit/config": "workspace:*",
+    "@architecture-kit/analyzers": "workspace:*",
+    "@architecture-kit/renderers": "workspace:*",
+    "@architecture-kit/flow-architecture": "workspace:*",
+    "@architecture-kit/flow-cleanup": "workspace:*",
+    "@architecture-kit/flow-optimize": "workspace:*",
+    "@architecture-kit/profile-action-driver": "workspace:*",
+    "@architecture-kit/mcp-server": "workspace:*",
+    "@architecture-kit/dev-server": "workspace:*",
+    "inversify": "8.3.0"
+  }
+}

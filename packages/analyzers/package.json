@@ -1,0 +1,57 @@
+{
+  "name": "@architecture-kit/analyzers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./audit": {
+      "types": "./dist/audit/index.d.ts",
+      "default": "./dist/audit/index.js"
+    },
+    "./audit/policy": {
+      "types": "./dist/audit/policy.d.ts",
+      "default": "./dist/audit/policy.js"
+    },
+    "./audit/debt": {
+      "types": "./dist/audit/debt.d.ts",
+      "default": "./dist/audit/debt.js"
+    },
+    "./audit/removal": {
+      "types": "./dist/audit/removal.d.ts",
+      "default": "./dist/audit/removal.js"
+    },
+    "./audit/clone-evidence": {
+      "types": "./dist/audit/clone-evidence.d.ts",
+      "default": "./dist/audit/clone-evidence.js"
+    },
+    "./audit/snapshot": {
+      "types": "./dist/audit/snapshot.d.ts",
+      "default": "./dist/audit/snapshot.js"
+    },
+    "./audit/stages": {
+      "types": "./dist/audit/stages/index.d.ts",
+      "default": "./dist/audit/stages/index.js"
+    },
+    "./quality": {
+      "types": "./dist/quality/index.d.ts",
+      "default": "./dist/quality/index.js"
+    },
+    "./quality/rules/no-global-fallback": {
+      "types": "./dist/quality/rules/no-global-fallback.d.ts",
+      "default": "./dist/quality/rules/no-global-fallback.js"
+    }
+  },
+  "dependencies": {
+    "@architecture-kit/core-ir": "workspace:*",
+    "@architecture-kit/ports": "workspace:*",
+    "@architecture-kit/runtime": "workspace:*",
+    "get-tsconfig": "4.14.3",
+    "inversify": "8.3.0",
+    "oxc-parser": "0.155.0",
+    "resolve-pkg-maps": "1.0.0"
+  }
+}

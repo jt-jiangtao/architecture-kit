@@ -1,7 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { classify, runChecks, compareBaseline } from '../../../profiles/action-driver/local-quality/engine.mjs'
-import { createPlan } from '../../../profiles/action-driver/local-quality/plan.mjs'
+import { classify, runChecks, compareBaseline, createPlan, createNativePorts, snapshotRepo, scanWorkingTree } from '@architecture-kit/analyzers'
 
 const command = {
   id: 'knip',
@@ -194,7 +193,6 @@ test('unknown application source and targets without checks report required cove
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { createNativePorts, snapshotRepo } from '../../../profiles/action-driver/local-quality/native.mjs'
 test('native execution writes a valid read-only report and preserves source bytes', async () => {
   const parent = path.resolve(
     import.meta.dirname,
@@ -294,7 +292,6 @@ test('dependency-cruiser counts violations in its exit code, but malformed repor
   assert.equal(classify(check, result(2, 'crashed')).execution, 'error')
 })
 
-import { scanWorkingTree } from '../../../profiles/action-driver/local-quality/working-tree-native.mjs'
 test('secret scan copies only Git inputs, includes dirty/untracked files, and cleans its mirror', () => {
   const parent = path.resolve(
     import.meta.dirname,

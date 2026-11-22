@@ -1,4 +1,4 @@
-import {loadConfig} from '../dist/packages/config/src/index.js'
+import { createProfileRegistry, loadConfig } from '@architecture-kit/config'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { snapshotRepo } from '../profiles/action-driver/local-quality/native.mjs'
-import { collectFacts } from '../dist/packages/adapters/src/workspace.js'
+import { snapshotRepo, collectFacts } from '@architecture-kit/analyzers'
+import { actionDriverProfile } from '@architecture-kit/profile-action-driver'
 const bin = path.resolve('bin/architecture-kit.mjs')
 const sum = (data) => createHash('sha256').update(data).digest('hex')
 for (const [failure, mode] of [[false, 'default'], [true, 'default'], [false, undefined]]) {
@@ -102,7 +102,9 @@ for (const [failure, mode] of [[false, 'default'], [true, 'default'], [false, un
       })
       const result = { audit: { ledgerDigest: sum(JSON.stringify(ledger)) } }
       await write(out + '/result.json', result)
-      const config=await loadConfig(path.join(root,'architecture-kit.config.json'),'cleanup')
+      const config = await loadConfig(path.join(root, 'architecture-kit.config.json'), 'cleanup', {
+        profiles: createProfileRegistry([actionDriverProfile])
+      })
       const refs=await Promise.all(config.inputPaths.map(async f=>[f,path.relative(root,await fs.realpath(path.join(root,f))),sum(await fs.readFile(path.join(root,f)))]))
       await write(runRoot + '/001-check/run.json', {
         configuredInputDigest:sum(JSON.stringify(refs)),

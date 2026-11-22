@@ -1,1 +1,1 @@
-export const ARCHITECTURE_KIT_VERSION = '0.0.0'
+export { ARCHITECTURE_KIT_VERSION } from '@architecture-kit/core-ir'

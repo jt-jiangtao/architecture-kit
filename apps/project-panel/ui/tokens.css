@@ -1,0 +1,63 @@
+:root {
+  --ak-bg-surface: #ffffff;
+  --ak-bg-canvas: #f7f8fa;
+  --ak-border-subtle: #eceef2;
+  --ak-border: #d8dce3;
+  --ak-text: #16191f;
+  --ak-text-muted: #5c6473;
+  --ak-accent: #1d64f2;
+  --ak-accent-surface: #eef4ff;
+  --ak-success-text: #146c43;
+  --ak-success-bg: #eaf7f0;
+  --ak-warning-text: #8a4f04;
+  --ak-warning-bg: #fff7e6;
+  --ak-warning-border: #e5a93b;
+  --ak-neutral-bg: #eff1f5;
+  --ak-neutral-text: #3e4654;
+
+  --spacing: 4px;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.375rem;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans SC", sans-serif;
+
+  --paper: var(--ak-bg-surface);
+  --canvas: var(--ak-bg-canvas);
+  --line: var(--ak-border-subtle);
+  --edge: var(--ak-border);
+  --ink: var(--ak-text);
+  --muted: var(--ak-text-muted);
+  --accent: var(--ak-accent);
+  --warning-bg: var(--ak-warning-bg);
+  --warning-border: var(--ak-warning-border);
+  --u: var(--spacing);
+
+  color-scheme: light dark;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ak-bg-surface: #14161b;
+    --ak-bg-canvas: #1b1e25;
+    --ak-border-subtle: #272b35;
+    --ak-border: #343946;
+    --ak-text: #eef1f7;
+    --ak-text-muted: #9aa3b4;
+    --ak-accent: #689dff;
+    --ak-accent-surface: #1c2a44;
+    --ak-success-text: #6cd99c;
+    --ak-success-bg: #153123;
+    --ak-warning-text: #f3c168;
+    --ak-warning-bg: #2f2412;
+    --ak-warning-border: #b87e1b;
+    --ak-neutral-bg: #262a34;
+    --ak-neutral-text: #c2c9d6;
+  }
+}

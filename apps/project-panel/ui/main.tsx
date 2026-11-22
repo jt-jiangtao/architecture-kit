@@ -1,11 +1,6 @@
-import {
-  createOverlayEnvironment,
-  OverlayEnvironmentProvider,
-} from "@action-driver/ui-components/codex/overlay-environment";
 import { createRoot } from "react-dom/client";
 import { Panel, type ProjectSource } from "./Panel";
-import "@action-driver/ui-components/codex/theme.css";
-import "@action-driver/codex-tokens/colors.css";
+import "./tokens.css";
 import "./panel.css";
 
 const live: ProjectSource = async (signal) => {
@@ -46,7 +41,5 @@ const preview: ProjectSource = async () => ({
   ],
 });
 createRoot(document.getElementById("root")!).render(
-  <OverlayEnvironmentProvider value={createOverlayEnvironment(document)}>
-    <Panel source={location.pathname === "/playground" ? preview : live} />
-  </OverlayEnvironmentProvider>,
+  <Panel source={location.pathname === "/playground" ? preview : live} />,
 );

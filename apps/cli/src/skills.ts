@@ -12,6 +12,7 @@ import {
 } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { randomUUID, createHash } from 'node:crypto'
+import { acquireLock, releaseLock } from '@architecture-kit/runtime'
 const hash = (text: string) => createHash('sha256').update(text).digest('hex')
 export async function installRepairSkill(
   project: string,
@@ -35,7 +36,7 @@ export async function installRepairSkill(
   const file = join(dir, 'SKILL.md'),
     lock = join(dir, '.installing')
   const body = await readFile(
-    new URL('../../../../skills/' + name + '/SKILL.md', import.meta.url),
+    new URL('../../../skills/' + name + '/SKILL.md', import.meta.url),
     'utf8'
   )
   const payload = body.trimEnd() + '\n',
@@ -44,7 +45,7 @@ export async function installRepairSkill(
       '\n<!-- architecture-kit managed sha256=' +
       hash(payload) +
       ' -->\n'
-  await mkdir(lock)
+  await acquireLock(lock)
   const temp = resolve(dir, '.update-' + randomUUID())
   try {
     let previous: string | null = null
@@ -99,6 +100,6 @@ export async function installRepairSkill(
     return file
   } finally {
     await rm(temp, { force: true })
-    await rm(lock, { recursive: true })
+    await releaseLock(lock)
   }
 }

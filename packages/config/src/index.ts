@@ -1,110 +1,255 @@
-import { discoverModules } from './discover.js'
-import {
-  flowSources,
-  ruleSources,
-  resource,
-  profilePrefix
-} from 'architecture-kit/profiles/action-driver/resources.mjs'
-import {
-  lstat,
-  mkdir,
-  readFile,
-  realpath,
-  stat,
-  writeFile
-} from 'node:fs/promises'
-import {
-  basename,
-  dirname,
-  isAbsolute,
-  join,
-  relative,
-  resolve,
-  sep,
-  win32
-} from 'node:path'
+import { z } from 'zod'
+import { mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
+import { basename, dirname, join, relative, resolve, sep, win32 } from 'node:path'
+import type { FlowName } from '@architecture-kit/core-ir'
+import type {
+  ArchitectureConfig,
+  ArchitectureModule,
+  CleanupConfig,
+  HookConfig,
+  HookPhase,
+  LegacyModule,
+  OptimizeConfig,
+  OptimizeTask,
+  ProfilePlugin,
+  ProfileRegistry,
+  ResolvedConfig,
+  ScanEntry
+} from '@architecture-kit/ports'
+import { confinePath, hasErrnoCode } from '@architecture-kit/runtime'
 
-const phases = [
-  'check.start',
-  'check.end',
-  'delete.start',
-  'delete.end'
-] as const
+export type {
+  ArchitectureConfig,
+  ArchitectureModule,
+  CleanupConfig,
+  FlowName,
+  HookConfig,
+  HookPhase,
+  LegacyModule,
+  OptimizeConfig,
+  OptimizeTask,
+  ProfileRegistry,
+  ResolvedConfig,
+  ScanEntry
+}
+export type KnipMode = 'default' | 'production'
+
+const phases = ['check.start', 'check.end', 'delete.start', 'delete.end'] as const
 const modes = ['default', 'production'] as const
 const outputs = ['module-index', 'source-index'] as const
 const flowNames = ['cleanup', 'architecture', 'optimize'] as const
 
-export type FlowName = (typeof flowNames)[number]
-export type HookPhase = (typeof phases)[number]
-export type KnipMode = (typeof modes)[number]
-export type HookConfig = { id: string; required: boolean } & (
-  | { script: string; command?: never }
-  | { command: string[]; script?: never }
-)
-export interface CleanupConfig {
-  enabled: boolean
-  reportPackages: string[]
-  debt: string | null
-  allowApply: boolean
-  tools: {
-    actionDriver?: { enabled: boolean; required: boolean }
-    knip: {
-      enabled: boolean
-      required: boolean
-      configFile: string | null
-      modes: KnipMode[]
+function invalid(field: string, reason: string): never {
+  throw new Error(`${field}: ${reason}`)
+}
+
+function isLocalPath(path: string): boolean {
+  if (!path.trim() || path.includes('\0')) return false
+  const parts = path.split('/')
+  return (
+    !win32.parse(path).root &&
+    !path.includes('\\') &&
+    !parts.includes('..') &&
+    !parts.every((p) => !p || p === '.')
+  )
+}
+
+const nonemptyString = (label: string) =>
+  z
+    .string({ error: `${label}: expected nonempty string` })
+    .refine((s) => s.trim().length > 0 && !s.includes('\0'), `${label}: expected nonempty string`)
+
+const localPathSchema = (label: string) =>
+  nonemptyString(label).refine(isLocalPath, `${label}: expected a relative project path`)
+
+function distinctChoicesSchema<T extends readonly [string, ...string[]]>(
+  label: string,
+  allowed: T
+) {
+  return z
+    .array(z.enum(allowed), { error: `${label}: expected array` })
+    .min(1, `${label}: expected one or more distinct choices from ${allowed.join(', ')}`)
+    .refine(
+      (list) => new Set(list).size === list.length,
+      `${label}: expected one or more distinct choices from ${allowed.join(', ')}`
+    )
+}
+
+export const HookEntrySchema = z
+  .strictObject({
+    id: nonemptyString('hooks.id').regex(/^[a-zA-Z0-9_-][a-zA-Z0-9._-]*$/, 'hooks.id: unsafe ID'),
+    required: z.boolean(),
+    script: nonemptyString('hooks.script').optional(),
+    command: z.array(nonemptyString('hooks.command')).min(1, 'hooks.command: expected nonempty argv').optional()
+  })
+  .superRefine((hook, ctx) => {
+    const hasScript = hook.script !== undefined
+    const hasCommand = hook.command !== undefined
+    if (hasScript === hasCommand) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'hooks: choose exactly one of script and command'
+      })
     }
+  })
+
+function hookListSchema(phase: HookPhase) {
+  return z.array(HookEntrySchema).superRefine((items, ctx) => {
+    const ids = new Set<string>()
+    for (const item of items) {
+      if (ids.has(item.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `hooks.${phase}: duplicate ID ${item.id}`
+        })
+      }
+      ids.add(item.id)
+    }
+  })
+}
+
+export const CleanupConfigSchema = z.strictObject({
+  enabled: z.boolean(),
+  reportPackages: z.array(nonemptyString('reportPackages')),
+  debt: nonemptyString('debt').nullable(),
+  allowApply: z.boolean(),
+  tools: z.strictObject({
+    actionDriver: z
+      .strictObject({
+        enabled: z.boolean(),
+        required: z.boolean()
+      })
+      .optional(),
+    knip: z.strictObject({
+      enabled: z.boolean(),
+      required: z.boolean(),
+      configFile: nonemptyString('knip.configFile').nullable(),
+      modes: distinctChoicesSchema('knip.modes', modes)
+    })
+  }),
+  hooks: z.strictObject({
+    'check.start': hookListSchema('check.start'),
+    'check.end': hookListSchema('check.end'),
+    'delete.start': hookListSchema('delete.start'),
+    'delete.end': hookListSchema('delete.end')
+  })
+})
+
+export const ArchitectureConfigSchema = z.strictObject({
+  enabled: z.boolean(),
+  outputs: distinctChoicesSchema('architecture.outputs', outputs)
+})
+
+const OptimizeBaseTaskSchema = z.strictObject({
+  id: nonemptyString('task.id').regex(/^[a-z][a-z0-9-]{0,79}$/, 'task.id: invalid task ID'),
+  kind: z.enum(['review', 'gate', 'metric']),
+  title: nonemptyString('title'),
+  target: localPathSchema('target'),
+  hypothesis: nonemptyString('hypothesis'),
+  inputs: z.array(nonemptyString('task input')),
+  check: z.array(nonemptyString('check')).min(1, 'check: empty command').nullable(),
+  measure: z.array(nonemptyString('measure')).min(1, 'measure: empty command').optional(),
+  unit: nonemptyString('unit').optional(),
+  direction: z.enum(['lower', 'higher']).optional(),
+  tolerance: z.number().finite().nonnegative().optional()
+})
+
+export const OptimizeConfigSchema = z
+  .strictObject({
+    enabled: z.boolean(),
+    tasks: z.array(OptimizeBaseTaskSchema),
+    scanRoots: z.array(localPathSchema('scanRoots')).optional()
+  })
+  .superRefine((cfg, ctx) => {
+    const ids = new Set<string>()
+    for (const row of cfg.tasks) {
+      if (ids.has(row.id)) {
+        ctx.addIssue({ code: 'custom', message: `${row.id}: duplicate task ID` })
+      }
+      ids.add(row.id)
+      if (!row.check && row.kind !== 'review') {
+        ctx.addIssue({ code: 'custom', message: `${row.id}: requires a behavior check` })
+      }
+      if (row.kind === 'metric') {
+        if (!row.measure || !row.unit || !row.direction || row.tolerance === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `${row.id}: metric task requires measure, direction, unit, and tolerance`
+          })
+        }
+      } else if (
+        row.measure !== undefined ||
+        row.unit !== undefined ||
+        row.direction !== undefined ||
+        row.tolerance !== undefined
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `${row.id}: unknown option for non-metric task`
+        })
+      }
+    }
+  })
+
+export const LegacyModuleSchema = z.strictObject({
+  symbols: z.array(nonemptyString('symbols')),
+  manifest: localPathSchema('manifest'),
+  entry: localPathSchema('entry'),
+  tsconfig: localPathSchema('tsconfig'),
+  model: localPathSchema('model'),
+  component: nonemptyString('component'),
+  view: nonemptyString('view'),
+  adr: localPathSchema('adr'),
+  repository: nonemptyString('repository').regex(
+    /^https:\/\/[\w.-]+(?:\/[\w.-]+){2,}$/,
+    'repository: expected HTTPS Git repository URL'
+  )
+})
+
+export const RootConfigSchema = z.strictObject({
+  $schema: z.string().optional(),
+  schemaVersion: z.literal(1),
+  storage: z.strictObject({
+    root: localPathSchema('storage.root'),
+    output: localPathSchema('storage.output')
+  }),
+  flows: z
+    .strictObject({
+      cleanup: localPathSchema('flows.cleanup').optional(),
+      architecture: localPathSchema('flows.architecture').optional(),
+      optimize: localPathSchema('flows.optimize').optional()
+    })
+    .optional(),
+  profile: nonemptyString('profile').optional(),
+  allowApply: z.boolean().optional(),
+  architectureModule: z
+    .union([
+      localPathSchema('architectureModule'),
+      z.strictObject({ scan: z.array(localPathSchema('scan entry')) })
+    ])
+    .optional()
+})
+
+export function generateConfigJsonSchema() {
+  return {
+    root: z.toJSONSchema(RootConfigSchema),
+    cleanup: z.toJSONSchema(CleanupConfigSchema),
+    architecture: z.toJSONSchema(ArchitectureConfigSchema),
+    optimize: z.toJSONSchema(OptimizeConfigSchema)
   }
-  hooks: Record<HookPhase, HookConfig[]>
 }
-export interface LegacyModule {
-  symbols: string[]
-  manifest: string
-  entry: string
-  tsconfig: string
-  model: string
-  component: string
-  view: string
-  adr: string
-  repository: string
-}
-export interface ScanEntry { manifest:string; entry:string; tsconfig:string; documents?:string[]; sources?:string[] }
-export type ArchitectureModule = LegacyModule | (ScanEntry & { scan:ScanEntry[] })
-export interface ArchitectureConfig {
-  module?: ArchitectureModule
-  enabled: boolean
-  outputs: (typeof outputs)[number][]
-}
-export interface OptimizeTask {
-  id: string
-  kind: 'review' | 'gate' | 'metric'
-  title: string
-  target: string
-  hypothesis: string
-  inputs: string[]
-  check: string[] | null
-  measure?: string[]
-  unit?: string
-  direction?: 'lower' | 'higher'
-  tolerance?: number
-}
-export interface OptimizeConfig {
-  enabled: boolean
-  tasks: OptimizeTask[]
-  scanRoots: string[]
-}
-export interface ResolvedConfig {
-  profile?: 'action-driver'
-  sources?: { flows: typeof flowSources; rules: typeof ruleSources }
-  schemaVersion: 1
-  root: string
-  inputPaths: string[]
-  storage: { root: string; output: string }
-  flows: {
-    cleanup?: CleanupConfig
-    architecture?: ArchitectureConfig
-    optimize?: OptimizeConfig
+
+function parseSchema<T>(schema: z.ZodType<T>, raw: unknown, label: string): T {
+  const result = schema.safeParse(raw)
+  if (result.success) return result.data
+  const first = result.error.issues[0]
+  if (!first) invalid(label, 'validation failed')
+  const pathStr = first.path.length ? `${label}.${first.path.join('.')}` : label
+  if (first.code === 'unrecognized_keys') {
+    const keys = (first as { keys?: string[] }).keys ?? []
+    invalid(pathStr, `unrecognized option(s): ${keys.join(', ')}`)
   }
+  invalid(pathStr, first.message)
 }
 
 const defaultRoot = {
@@ -116,6 +261,7 @@ const defaultRoot = {
     architecture: './config/architecture-kit/architecture.json'
   }
 }
+
 const defaults: Required<ResolvedConfig['flows']> = {
   cleanup: {
     enabled: true,
@@ -142,101 +288,33 @@ const defaults: Required<ResolvedConfig['flows']> = {
   architecture: { enabled: true, outputs: [...outputs] }
 }
 
-function invalid(field: string, reason: string): never {
-  throw new Error(`${field}: ${reason}`)
+const registeredProfiles = new Map<string, ProfilePlugin>()
+
+export function registerProfilePlugin(plugin: ProfilePlugin): void {
+  registeredProfiles.set(plugin.id, plugin)
 }
 
-function fields(
-  value: unknown,
-  field: string,
-  required: readonly string[],
-  optional: readonly string[] = []
-) {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    invalid(field, 'expected object')
-  for (const key of required)
-    if (!Object.hasOwn(value, key)) invalid(`${field}.${key}`, 'required')
-  for (const key of Object.keys(value)) {
-    if (!required.includes(key) && !optional.includes(key))
-      invalid(`${field}.${key}`, 'unknown option')
+export function createProfileRegistry(plugins: readonly ProfilePlugin[]): ProfileRegistry {
+  const map = new Map(plugins.map((plugin) => [plugin.id, plugin]))
+  return {
+    get: (id) => map.get(id),
+    resolveResource(profileId, ref) {
+      const plugin = map.get(profileId)
+      if (!plugin) throw new Error('Unknown profile: ' + profileId)
+      return plugin.resolveResource(ref)
+    },
+    all: () => [...map.values()]
   }
-  return value as Record<string, unknown>
 }
 
-function flag(value: unknown, field: string): boolean {
-  return typeof value === 'boolean' ? value : invalid(field, 'expected boolean')
-}
-
-function string(value: unknown, field: string): string {
-  return typeof value === 'string' && value.trim() && !value.includes('\0')
-    ? value
-    : invalid(field, 'expected nonempty string')
-}
-
-function strings(value: unknown, field: string): string[] {
-  if (!Array.isArray(value)) invalid(field, 'expected array')
-  return value.map((item) => string(item, field))
-}
-
-function choices<T extends string>(
-  value: unknown,
-  field: string,
-  allowed: readonly T[]
-): T[] {
-  const list = strings(value, field)
-  if (
-    !list.length ||
-    new Set(list).size !== list.length ||
-    list.some((item) => !(allowed as readonly string[]).includes(item))
-  ) {
-    invalid(
-      field,
-      `expected one or more distinct choices from ${allowed.join(', ')}`
-    )
-  }
-  return list as T[]
-}
-
-function localPath(value: unknown, field: string): string {
-  const path = string(value, field)
-  const parts = path.split('/')
-  if (
-    win32.parse(path).root ||
-    path.includes('\\') ||
-    parts.includes('..') ||
-    parts.every((p) => !p || p === '.')
-  ) {
-    invalid(field, 'expected a relative project path')
-  }
-  return path
-}
-
-function hasCode(error: unknown, code: string) {
-  return error instanceof Error && 'code' in error && error.code === code
-}
-
-// Check every existing prefix, including symlinks whose final child does not exist yet.
-async function confined(
-  root: string,
-  path: string,
-  directoryField?: string
-): Promise<string> {
-  let current = root
-  for (const part of relative(root, resolve(root, path)).split(sep)) {
-    current = join(current, part)
-    try {
-      const info = await lstat(current)
-      if (directoryField && !info.isDirectory())
-        invalid(directoryField, 'expected real directories')
-    } catch (error) {
-      if (hasCode(error, 'ENOENT')) break
-      throw error
-    }
-    const rel = relative(root, await realpath(current))
-    if (rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel))
-      invalid(path, 'outside project root')
-  }
-  return resolve(root, path)
+const builtinRegistry: ProfileRegistry = {
+  get: (id) => registeredProfiles.get(id),
+  resolveResource(profileId, ref) {
+    const plugin = registeredProfiles.get(profileId)
+    if (!plugin) throw new Error('Unknown profile: ' + profileId)
+    return plugin.resolveResource(ref)
+  },
+  all: () => [...registeredProfiles.values()]
 }
 
 async function readJson(file: string): Promise<unknown> {
@@ -248,86 +326,96 @@ async function readJson(file: string): Promise<unknown> {
   }
 }
 
-async function parseRoot(file: string) {
+export interface ConfigLoadOptions {
+  profiles?: ProfileRegistry
+  discoverModules?: (
+    root: string,
+    storage: string,
+    input: (p: string, label: string) => Promise<string>
+  ) => Promise<ScanEntry[]>
+}
+
+async function parseRoot(file: string, registry: ProfileRegistry) {
   const root = await realpath(dirname(resolve(file)))
-  const raw = fields(
-    await readJson(await confined(root, basename(file))),
-    file,
-    ['schemaVersion', 'storage'],
-    ['flows', 'profile', 'allowApply', 'architectureModule']
+  const raw = parseSchema(
+    RootConfigSchema,
+    await readJson(await confinePath(root, basename(file))),
+    file
   )
-  if (raw.schemaVersion !== 1) invalid('schemaVersion', 'expected 1')
-  const paths = fields(raw.storage, 'storage', ['root', 'output'])
-  const storage = {
-    root: localPath(paths.root, 'storage.root'),
-    output: localPath(paths.output, 'storage.output')
-  }
+  const storage = raw.storage
   if (
     storage.output
       .toLowerCase()
       .split('/')
       .find((part) => part && part !== '.') === 'run.json'
-  )
+  ) {
     invalid('storage.output', 'conflicts with run.json')
-  for (const [key, path] of Object.entries(storage)) {
+  }
+  for (const [key, value] of Object.entries(storage)) {
     if (
-      path
+      value
         .toLowerCase()
         .split('/')
         .some((part) => part === '.git' || part === 'node_modules')
-    )
+    ) {
       invalid('storage.' + key, 'reserved directory')
-  }
-  await confined(root, storage.root, 'storage.root')
-  const profile = raw.profile
-  if (
-    profile !== undefined &&
-    (profile !== 'action-driver' || raw.flows !== undefined)
-  )
-    invalid('profile', 'expected action-driver without local flow files')
-  if (
-    raw.allowApply !== undefined &&
-    (!profile || typeof raw.allowApply !== 'boolean')
-  )
-    invalid('allowApply', 'expected profile permission')
-  const refs = fields(profile ? flowSources : raw.flows, 'flows', [], flowNames)
-  const flowFiles: Partial<Record<FlowName, string>> = {}
-  for (const name of flowNames) {
-    if (Object.hasOwn(refs, name))
-      flowFiles[name] = profile
-        ? flowSources[name]
-        : localPath(refs[name], `flows.${name}`)
-  }
-  const inputPaths = new Set<string>()
-  const storageDirectory = await realpath(resolve(root, storage.root)).catch(
-    (error: unknown) => {
-      if (hasCode(error, 'ENOENT')) return resolve(root, storage.root)
-      throw error
     }
-  )
+  }
+  await confinePath(root, storage.root, 'storage.root')
+
+  let activeProfile: ProfilePlugin | undefined
+  if (raw.profile !== undefined) {
+    activeProfile = registry.get(raw.profile)
+    if (!activeProfile || raw.flows !== undefined) {
+      invalid('profile', 'expected registered profile without local flow files')
+    }
+  }
+  if (raw.allowApply !== undefined && !activeProfile) {
+    invalid('allowApply', 'expected profile permission')
+  }
+
+  const flowFiles: Partial<Record<FlowName, string>> = {}
+  const flowRefs = activeProfile ? activeProfile.flowSources : raw.flows ?? {}
+  for (const name of flowNames) {
+    if (Object.hasOwn(flowRefs, name) && flowRefs[name] !== undefined) {
+      flowFiles[name] = flowRefs[name]!
+    }
+  }
+
+  const inputPaths = new Set<string>()
+  const storageDirectory = await realpath(resolve(root, storage.root)).catch((error: unknown) => {
+    if (hasErrnoCode(error, 'ENOENT')) return resolve(root, storage.root)
+    throw error
+  })
+
   async function inputFile(value: unknown, field: string): Promise<string> {
-    if (typeof value === 'string' && value.startsWith(profilePrefix)) {
-      if (!profile) invalid(field, 'package reference requires named profile')
-      if (!(await stat(resource(value))).isFile())
+    if (
+      activeProfile &&
+      typeof value === 'string' &&
+      value.startsWith(activeProfile.prefix)
+    ) {
+      if (!(await stat(activeProfile.resolveResource(value))).isFile()) {
         invalid(field, 'expected profile file')
+      }
       inputPaths.add(value)
       return value
     }
-    const path = localPath(value, field)
-    const target = await confined(root, path)
-    if (!(await stat(target)).isFile())
+    if (typeof value !== 'string' || !isLocalPath(value)) {
+      invalid(field, 'expected a relative project path')
+    }
+    const target = await confinePath(root, value)
+    if (!(await stat(target)).isFile()) {
       invalid(field, `expected a file at ${target}`)
+    }
     for (const candidate of [target, await realpath(target)]) {
-      if (
-        candidate === storageDirectory ||
-        candidate.startsWith(storageDirectory + sep)
-      ) {
-        invalid(field, `input ${path} overlaps storage.root`)
+      if (candidate === storageDirectory || candidate.startsWith(storageDirectory + sep)) {
+        invalid(field, `input ${value} overlaps storage.root`)
       }
     }
     inputPaths.add(relative(root, target).split(sep).join('/'))
-    return path
+    return value
   }
+
   await inputFile(basename(file), 'config')
   return {
     root,
@@ -336,18 +424,17 @@ async function parseRoot(file: string) {
     architectureModule: raw.architectureModule,
     inputPaths,
     inputFile,
-    profile,
+    activeProfile,
     allowApply: raw.allowApply === true
   }
 }
 
 type InputFile = (value: unknown, field: string) => Promise<string>
 
-async function hooksFor(
+async function resolveHooks(
   inputFile: InputFile,
-  raw: unknown
+  rawHooks: z.infer<typeof CleanupConfigSchema>['hooks']
 ): Promise<CleanupConfig['hooks']> {
-  const config = fields(raw, 'hooks', phases)
   const hooks: CleanupConfig['hooks'] = {
     'check.start': [],
     'check.end': [],
@@ -355,191 +442,107 @@ async function hooksFor(
     'delete.end': []
   }
   for (const phase of phases) {
-    const items = config[phase]
-    const label = `hooks.${phase}`
-    if (!Array.isArray(items)) invalid(label, 'expected array')
-    const ids = new Set<string>()
-    for (const item of items) {
-      const hook = fields(
-        item,
-        label,
-        ['id', 'required'],
-        ['script', 'command']
-      )
-      const id = string(hook.id, label + '.id')
-      if (!/^[a-zA-Z0-9_-][a-zA-Z0-9._-]*$/.test(id))
-        invalid(label + '.id', 'unsafe ID')
-      if (ids.has(id)) invalid(label, `duplicate ID ${id}`)
-      ids.add(id)
-      const required = flag(hook.required, label + '.required')
-      if (Object.hasOwn(hook, 'script') === Object.hasOwn(hook, 'command'))
-        invalid(label, 'choose exactly one of script and command')
-      if (Object.hasOwn(hook, 'script')) {
-        const script = await inputFile(hook.script, label + '.script')
-        hooks[phase].push({ id, required, script })
+    for (const item of rawHooks[phase]) {
+      const label = `hooks.${phase}`
+      if (item.script !== undefined) {
+        hooks[phase].push({
+          id: item.id,
+          required: item.required,
+          script: await inputFile(item.script, label + '.script')
+        })
       } else {
-        const command = strings(hook.command, label + '.command')
-        if (!command.length)
-          invalid(label + '.command', 'expected nonempty argv')
-        hooks[phase].push({ id, required, command })
+        hooks[phase].push({
+          id: item.id,
+          required: item.required,
+          command: item.command!
+        })
       }
     }
   }
   return hooks
 }
 
-async function cleanupConfig(
-  inputFile: InputFile,
-  value: unknown
-): Promise<CleanupConfig> {
-  const c = fields(value, 'cleanup', [
-    'enabled',
-    'reportPackages',
-    'debt',
-    'allowApply',
-    'tools',
-    'hooks'
-  ])
-  const enabled = flag(c.enabled, 'cleanup.enabled')
-  const allowApply = flag(c.allowApply, 'cleanup.allowApply')
-  const tools = fields(c.tools, 'tools', ['knip'], ['actionDriver'])
-  const profile =
-    tools.actionDriver === undefined
-      ? null
-      : fields(tools.actionDriver, 'tools.actionDriver', [
-          'enabled',
-          'required'
-        ])
-  const actionDriver = {
-    enabled: profile ? flag(profile.enabled, 'actionDriver.enabled') : false,
-    required: profile ? flag(profile.required, 'actionDriver.required') : true
-  }
-  const k = fields(tools.knip, 'tools.knip', [
-    'enabled',
-    'required',
-    'configFile',
-    'modes'
-  ])
-  const knip = {
-    enabled: flag(k.enabled, 'knip.enabled'),
-    required: flag(k.required, 'knip.required'),
-    modes: choices(k.modes, 'knip.modes', modes),
-    configFile:
-      k.configFile === null
-        ? null
-        : await inputFile(k.configFile, 'knip.configFile')
-  }
+async function resolveCleanup(inputFile: InputFile, value: unknown): Promise<CleanupConfig> {
+  const parsed = parseSchema(CleanupConfigSchema, value, 'cleanup')
+  const actionDriver = parsed.tools.actionDriver ?? { enabled: false, required: true }
   return {
-    enabled,
-    reportPackages: strings(c.reportPackages, 'reportPackages'),
-    allowApply,
-    debt: c.debt === null ? null : await inputFile(c.debt, 'debt'),
-    tools: { knip, actionDriver },
-    hooks: await hooksFor(inputFile, c.hooks)
+    enabled: parsed.enabled,
+    reportPackages: parsed.reportPackages,
+    allowApply: parsed.allowApply,
+    debt: parsed.debt === null ? null : await inputFile(parsed.debt, 'debt'),
+    tools: {
+      actionDriver,
+      knip: {
+        enabled: parsed.tools.knip.enabled,
+        required: parsed.tools.knip.required,
+        modes: parsed.tools.knip.modes,
+        configFile:
+          parsed.tools.knip.configFile === null
+            ? null
+            : await inputFile(parsed.tools.knip.configFile, 'knip.configFile')
+      }
+    },
+    hooks: await resolveHooks(inputFile, parsed.hooks)
   }
 }
 
-async function optimizeConfig(
+async function resolveOptimize(
   inputFile: InputFile,
   raw: unknown,
   validateFiles: boolean
 ): Promise<OptimizeConfig> {
-  const cfg = fields(raw, 'optimize', ['enabled', 'tasks'], ['scanRoots'])
-  if (!Array.isArray(cfg.tasks)) invalid('optimize.tasks', 'expected array')
-  const ids = new Set<string>(),
-    tasks: OptimizeTask[] = []
-  function argv(value: unknown, label: string) {
-    const args = strings(value, label)
-    if (!args.length) invalid(label, 'empty command')
-    return args
-  }
-  for (const entry of cfg.tasks) {
-    const base = [
-      'id',
-      'kind',
-      'title',
-      'target',
-      'hypothesis',
-      'inputs',
-      'check'
-    ]
-    const row = fields(
-      entry,
-      'task',
-      base,
-      entry?.kind === 'metric'
-        ? ['measure', 'direction', 'unit', 'tolerance']
-        : []
-    )
-    const id = string(row.id, 'task.id')
-    if (!/^[a-z][a-z0-9-]{0,79}$/.test(id) || ids.has(id))
-      invalid(id, 'invalid or duplicate task ID')
-    ids.add(id)
-    const kind = row.kind
-    if (kind !== 'metric' && kind !== 'review' && kind !== 'gate')
-      invalid(id, 'unknown task kind')
-    const task: OptimizeTask = {
-      id,
-      kind,
-      title: string(row.title, 'title'),
-      target: localPath(row.target, 'target'),
-      hypothesis: string(row.hypothesis, 'hypothesis'),
-      inputs: [],
-      check: row.check === null ? null : argv(row.check, 'check')
+  const parsed = parseSchema(OptimizeConfigSchema, raw, 'optimize')
+  const tasks: OptimizeTask[] = []
+  for (const entry of parsed.tasks) {
+    const inputs: string[] = []
+    for (const file of entry.inputs) {
+      inputs.push(validateFiles ? await inputFile(file, 'task input') : file)
     }
-    for (const file of strings(row.inputs, 'inputs'))
-      task.inputs.push(
-        validateFiles
-          ? await inputFile(file, 'task input')
-          : localPath(file, 'task input')
-      )
-    if (!task.check && kind !== 'review')
-      invalid(id, 'requires a behavior check')
-    if (kind === 'metric') {
-      if (row.direction !== 'lower' && row.direction !== 'higher')
-        invalid(id, 'expected lower or higher')
-      if (
-        typeof row.tolerance !== 'number' ||
-        !Number.isFinite(row.tolerance) ||
-        row.tolerance < 0
-      )
-        invalid(id, 'invalid relative tolerance')
-      Object.assign(task, {
-        direction: row.direction,
-        unit: string(row.unit, 'unit'),
-        tolerance: row.tolerance,
-        measure: argv(row.measure, 'measure')
-      })
+    const task: OptimizeTask = {
+      id: entry.id,
+      kind: entry.kind,
+      title: entry.title,
+      target: entry.target,
+      hypothesis: entry.hypothesis,
+      inputs,
+      check: entry.check,
+      ...(entry.measure !== undefined ? { measure: entry.measure } : {}),
+      ...(entry.unit !== undefined ? { unit: entry.unit } : {}),
+      ...(entry.direction !== undefined ? { direction: entry.direction } : {}),
+      ...(entry.tolerance !== undefined ? { tolerance: entry.tolerance } : {})
     }
     tasks.push(task)
   }
   return {
-    enabled: flag(cfg.enabled, 'optimize.enabled'),
+    enabled: parsed.enabled,
     tasks,
-    scanRoots: strings(cfg.scanRoots ?? [], 'scanRoots').map((f) =>
-      localPath(f, 'scanRoots')
-    )
+    scanRoots: parsed.scanRoots ?? []
   }
 }
-export async function workspaceLocation(file: string) {
-  const {root,storage} = await parseRoot(file)
-  return {root,storage}
+
+export async function workspaceLocation(file: string, options: ConfigLoadOptions = {}) {
+  const { root, storage } = await parseRoot(file, options.profiles ?? builtinRegistry)
+  return { root, storage }
 }
 
 export async function loadConfig(
   file: string,
-  only?: FlowName
+  only?: FlowName,
+  options: ConfigLoadOptions = {}
 ): Promise<ResolvedConfig> {
+  const registry = options.profiles ?? builtinRegistry
+  const discover = options.discoverModules
   const {
     root,
     storage,
     flowFiles,
     inputPaths,
     inputFile,
-    profile,
+    activeProfile,
     allowApply,
     architectureModule
-  } = await parseRoot(file)
+  } = await parseRoot(file, registry)
+
   const flows: ResolvedConfig['flows'] = {}
   for (const name of only ? [only] : flowNames) {
     const path = flowFiles[name]
@@ -548,117 +551,76 @@ export async function loadConfig(
       continue
     }
     const ref = await inputFile(path, `flows.${name}`)
-    const raw = await readJson(profile ? resource(ref) : resolve(root, ref))
-    if (name === 'optimize')
-      flows.optimize = await optimizeConfig(inputFile, raw, only === undefined)
-    else if (name === 'cleanup')
-      flows.cleanup = await cleanupConfig(inputFile, raw)
-    else {
-      const c = fields(raw, 'architecture', ['enabled', 'outputs'])
+    const raw = await readJson(
+      activeProfile ? activeProfile.resolveResource(ref) : resolve(root, ref)
+    )
+    if (name === 'optimize') {
+      flows.optimize = await resolveOptimize(inputFile, raw, only === undefined)
+    } else if (name === 'cleanup') {
+      flows.cleanup = await resolveCleanup(inputFile, raw)
+    } else {
+      const c = parseSchema(ArchitectureConfigSchema, raw, 'architecture')
       flows.architecture = {
-        enabled: flag(c.enabled, 'architecture.enabled'),
-        outputs: choices(c.outputs, 'architecture.outputs', outputs)
+        enabled: c.enabled,
+        outputs: c.outputs
       }
       if (architectureModule === undefined) {
-        const entries = await discoverModules(root, storage.root, inputFile)
+        const entries = discover ? await discover(root, storage.root, inputFile) : []
         if (entries.length) flows.architecture.module = { ...entries[0]!, scan: entries }
+      } else if (typeof architectureModule === 'object' && architectureModule !== null) {
+        const entries: ScanEntry[] = []
+        for (const value of architectureModule.scan) {
+          const entry = await inputFile(value, 'scan entry')
+          let directory = dirname(entry)
+          while (
+            !(await stat(join(root, directory, 'package.json')).catch(() => null))?.isFile()
+          ) {
+            if (directory === '.') invalid('scan entry', 'missing package.json for ' + entry)
+            directory = dirname(directory)
+          }
+          entries.push({
+            entry,
+            manifest: await inputFile(join(directory, 'package.json'), 'manifest'),
+            tsconfig: await inputFile(join(directory, 'tsconfig.json'), 'tsconfig')
+          })
+        }
+        if (!entries.length || new Set(entries.map((e) => e.manifest)).size !== entries.length) {
+          invalid('architectureModule.scan', 'expected distinct package entries')
+        }
+        flows.architecture.module = { ...entries[0]!, scan: entries }
       } else {
-        if (
-          typeof architectureModule === 'object' &&
-          architectureModule !== null
-        ) {
-          const { scan } = fields(architectureModule, 'architectureModule', [
-            'scan'
-          ])
-          const entries: ScanEntry[] = []
-          for (const value of strings(scan, 'architectureModule.scan')) {
-            const entry = await inputFile(
-              localPath(value, 'scan entry'),
-              'scan entry'
-            )
-            let directory = dirname(entry)
-            while (
-              !(
-                await stat(join(root, directory, 'package.json')).catch(
-                  () => null
-                )
-              )?.isFile()
-            ) {
-              if (directory === '.')
-                invalid('scan entry', 'missing package.json for ' + entry)
-              directory = dirname(directory)
-            }
-            entries.push({
-              entry,
-              manifest: await inputFile(
-                join(directory, 'package.json'),
-                'manifest'
-              ),
-              tsconfig: await inputFile(
-                join(directory, 'tsconfig.json'),
-                'tsconfig'
-              )
-            })
-          }
-          if (
-            !entries.length ||
-            new Set(entries.map((e) => e.manifest)).size !== entries.length
-          )
-            invalid(
-              'architectureModule.scan',
-              'expected distinct package entries'
-            )
-          flows.architecture.module = { ...entries[0]!, scan: entries }
-        } else {
-          const descriptor = await inputFile(
-            localPath(architectureModule, 'architectureModule'),
-            'architectureModule'
-          )
-          const m = fields(
-            await readJson(resolve(root, descriptor)),
-            descriptor,
-            [
-              'manifest',
-              'entry',
-              'tsconfig',
-              'model',
-              'component',
-              'view',
-              'adr',
-              'repository',
-              'symbols'
-            ]
-          )
-          const file = (key: string) => inputFile(localPath(m[key], key), key)
-          const repository = string(m.repository, 'repository')
-          if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/.test(repository))
-            invalid('repository', 'expected HTTPS GitHub repository URL')
-          flows.architecture.module = {
-            symbols: strings(m.symbols, 'symbols'),
-            manifest: await file('manifest'),
-            entry: await file('entry'),
-            tsconfig: await file('tsconfig'),
-            model: await file('model'),
-            adr: await file('adr'),
-            component: string(m.component, 'component'),
-            view: string(m.view, 'view'),
-            repository
-          }
+        const descriptor = await inputFile(architectureModule, 'architectureModule')
+        const m = parseSchema(
+          LegacyModuleSchema,
+          await readJson(resolve(root, descriptor)),
+          descriptor
+        )
+        flows.architecture.module = {
+          symbols: m.symbols,
+          manifest: await inputFile(m.manifest, 'manifest'),
+          entry: await inputFile(m.entry, 'entry'),
+          tsconfig: await inputFile(m.tsconfig, 'tsconfig'),
+          model: await inputFile(m.model, 'model'),
+          adr: await inputFile(m.adr, 'adr'),
+          component: m.component,
+          view: m.view,
+          repository: m.repository
         }
       }
     }
     if (only && !flows[name]?.enabled) invalid(name, 'flow disabled')
   }
-  if (profile && flows.cleanup) {
+  if (activeProfile && flows.cleanup) {
     flows.cleanup.allowApply = allowApply
-    for (const ref of Object.values(ruleSources))
+    for (const ref of Object.values(activeProfile.ruleSources)) {
       await inputFile(ref, 'profile rule')
+    }
   }
   return {
-    ...(profile
+    ...(activeProfile
       ? {
-          profile: 'action-driver' as const,
-          sources: { flows: flowSources, rules: ruleSources }
+          profile: activeProfile.id,
+          sources: { flows: activeProfile.flowSources, rules: activeProfile.ruleSources }
         }
       : {}),
     schemaVersion: 1,
@@ -674,16 +636,19 @@ async function writeMissing(file: string, value: unknown) {
   try {
     await writeFile(file, JSON.stringify(value, null, 2) + '\n', { flag: 'wx' })
   } catch (error) {
-    if (!hasCode(error, 'EEXIST')) throw error
+    if (!hasErrnoCode(error, 'EEXIST')) throw error
   }
 }
 
-export async function initConfig(file: string): Promise<void> {
+export async function initConfig(file: string, options: ConfigLoadOptions = {}): Promise<void> {
   await writeMissing(resolve(file), defaultRoot)
-  const { root, flowFiles, profile } = await parseRoot(file)
-  if (profile) return
+  const { root, flowFiles, activeProfile } = await parseRoot(
+    file,
+    options.profiles ?? builtinRegistry
+  )
+  if (activeProfile) return
   for (const name of flowNames) {
     const path = flowFiles[name]
-    if (path) await writeMissing(await confined(root, path), defaults[name])
+    if (path) await writeMissing(await confinePath(root, path), defaults[name])
   }
 }

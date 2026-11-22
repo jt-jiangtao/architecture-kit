@@ -1,41 +1,45 @@
-import {
-  resource,
-  profilePrefix
-} from 'architecture-kit/profiles/action-driver/resources.mjs'
 import { parseArgs } from 'node:util'
-import { relative, resolve, join, isAbsolute, sep } from 'node:path'
+import { relative, resolve, join, isAbsolute, sep, dirname } from 'node:path'
 import { readFile, realpath } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
-import { ARCHITECTURE_KIT_VERSION } from '../../../src/index.js'
-import { loadConfig, initConfig, workspaceLocation } from '../../../packages/config/src/index.js'
-import { collectFacts } from '../../../packages/adapters/src/workspace.js'
-import { runKnip } from '../../../packages/adapters/src/knip.js'
+import { spawn } from 'node:child_process'
+import { ARCHITECTURE_KIT_VERSION } from '@architecture-kit/core-ir'
 import {
-  runHook,
+  DI_TOKENS,
+  type ArchitectureCollectorPort,
+  type ArchitectureRendererPort,
+  type CleanupPorts,
+  type ProfilePlugin,
+  type ProfileRegistry
+} from '@architecture-kit/ports'
+import {
+  loadConfig,
+  initConfig,
+  workspaceLocation
+} from '@architecture-kit/config'
+import {
+  type collectFacts,
+  type discoverModules
+} from '@architecture-kit/analyzers'
+import { generate, publishArchitectureModule } from '@architecture-kit/flow-architecture'
+import { check, renderTasks } from '@architecture-kit/flow-cleanup'
+import {
   writeEvidence,
-  readDebt
-} from '../../../packages/runtime/src/process.js'
-import {
   openRound,
   finishRound,
   publishResults,
   baselines,
+  markCurrent,
   type Round
-} from '../../../packages/runtime/src/round.js'
-import { generate } from '../../architecture/src/generate.js'
-import { check } from '../../cleanup/src/check.js'
-
+} from '@architecture-kit/runtime'
+import { serveMcp } from '@architecture-kit/mcp-server'
+import { watchWorkspace, initDocs } from '@architecture-kit/dev-server'
+import { actionDriverProfile } from '@architecture-kit/profile-action-driver'
 import { installRepairSkill } from './skills.js'
-import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { runProcess } from '../../../packages/runtime/src/process.js'
-import { runAudit } from '../../../packages/adapters/src/action-driver.js'
-import { renderTasks } from '../../cleanup/src/report.js'
-import { profileOperation } from './profile-operation.js'
-
 import { optimizeOperation } from './optimize-operation.js'
+import { createAppContainer, createRoundScope } from './container.js'
 
-import { spawn } from 'node:child_process'
+export { createAppContainer, createRoundScope }
 const commands = new Map([
   [
     'optimize capture',
@@ -140,6 +144,7 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
   const controller = new AbortController()
   const interrupt = () => controller.abort()
   process.once('SIGINT', interrupt)
+  process.once('SIGTERM', interrupt)
   let round: Round | undefined
   let metadata: Record<string, unknown> = {}
   let machine = false
@@ -152,6 +157,16 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
     reportPath: null
   }
   try {
+    const appContainer = await createAppContainer()
+    const profiles = appContainer.get<ProfileRegistry>(DI_TOKENS.ProfileRegistry)
+    const moduleDiscoverer = appContainer.get<typeof discoverModules>(
+      DI_TOKENS.ModuleDiscoverer
+    )
+    const factsCollector = appContainer.get<typeof collectFacts>(
+      DI_TOKENS.FactsCollector
+    )
+    const configOptions = { profiles, discoverModules: moduleDiscoverer }
+
     const { values, positionals } = parseArgs({
       args: argv,
       allowPositionals: true,
@@ -178,7 +193,8 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
         only: { type: 'string' },
         mode: { type: 'string' },
         tests: { type: 'string' },
-        apply: { type: 'boolean' }
+        apply: { type: 'boolean' },
+        'as-of': { type: 'string' }
       }
     })
     const capture =
@@ -240,6 +256,15 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
       (values.task !== undefined || values['cleanup-from'] !== undefined)
     )
       throw new Error('Optimization options require optimize check')
+    if (values['as-of'] !== undefined && cmd !== 'cleanup check')
+      throw new Error('--as-of requires cleanup check')
+    const asOf = values['as-of'] ?? new Date().toISOString().slice(0, 10)
+    if (
+      !/^\d{4}-\d\d-\d\d$/.test(asOf) ||
+      Number.isNaN(Date.parse(asOf)) ||
+      new Date(asOf).toISOString().slice(0, 10) !== asOf
+    )
+      throw new Error('Invalid --as-of date (expected YYYY-MM-DD)')
     if (flow === 'optimize' && values.from && !values['run-id'])
       throw new Error('--from requires --run-id')
     machine = Boolean(values.json)
@@ -247,45 +272,45 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
     if (values.port !== undefined && cmd !== 'architecture watch')
       throw Error('--port requires architecture watch')
     if (cmd === 'architecture mcp') {
-      const { serveMcp } = await import('../../architecture/src/mcp.js')
-      await serveMcp(await workspaceLocation(file), controller.signal)
+      await serveMcp(
+        await workspaceLocation(file, configOptions),
+        controller.signal,
+        ARCHITECTURE_KIT_VERSION
+      )
       return 0
     }
     if (cmd === 'architecture init-docs' || cmd === 'architecture watch') {
-      const config = await loadConfig(file, 'architecture')
+      const config = await loadConfig(file, 'architecture', configOptions)
       if (cmd === 'architecture init-docs') {
-        const { initDocs } = await import('../../architecture/src/workspace.js')
         await initDocs(config, file)
       } else {
-        const { watchWorkspace } = await import('../../architecture/src/watch.js')
         const port = Number(values.port ?? 4192)
         if (!Number.isInteger(port) || port < 0 || port > 65535)
           throw Error('Invalid preview port')
-        await watchWorkspace(config, file, port, controller.signal, canPublish =>
-          main(['architecture', 'generate', '--config', file], canPublish)
+        await watchWorkspace(
+          config,
+          file,
+          port,
+          controller.signal,
+          (canPublish) => main(['architecture', 'generate', '--config', file], canPublish),
+          configOptions
         )
       }
       return 0
     }
     if (capture) {
-      const config = await loadConfig(file, 'optimize')
-      if (!config.profile)
-        throw new Error('Capture requires action-driver profile')
+      const config = await loadConfig(file, 'optimize', configOptions)
+      const activeProfile = config.profile ? profiles.get(config.profile) : undefined
+      if (!activeProfile)
+        throw new Error('Capture requires a registered profile with capture entries')
       const [name, ...args] = positionals.slice(2)
-      const entries: Record<string, string> = {
-        stamp: 'evidence.mjs',
-        loading: 'measure-loading-performance.mjs',
-        turn: 'turn-metrics-report.mjs',
-        media: 'pipeline_benchmark.py',
-        'content-performance': 'browser.mjs',
-        'lazy-loading': 'browser.mjs'
-      }
-      if (!name || !Object.hasOwn(entries, name))
+      const entryScript = name ? activeProfile.captureEntries[name] : undefined
+      if (!name || !entryScript)
         throw new Error('See optimize capture --help')
       const child = spawn(
         name === 'media' ? 'python3' : process.execPath,
         [
-          resource(profilePrefix + 'probes/' + entries[name]),
+          activeProfile.resolveResource(activeProfile.prefix + 'probes/' + entryScript),
           ...(['stamp', 'content-performance', 'lazy-loading'].includes(name)
             ? [name]
             : []),
@@ -299,20 +324,10 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
       })
     }
     if (cmd.startsWith('tools ')) {
-      const r = await runProcess(
-        process.cwd(),
-        [
-          process.execPath,
-          fileURLToPath(
-            new URL(
-              '../../../../profiles/action-driver/native-tools.mjs',
-              import.meta.url
-            )
-          ),
-          positionals[1]!
-        ],
-        controller.signal
-      )
+      const toolProfile = profiles.all().find((p) => p.runToolsCommand)
+      if (!toolProfile?.runToolsCommand)
+        throw new Error('No registered profile supports native tools')
+      const r = await toolProfile.runToolsCommand(positionals[1]!, controller.signal)
       process.stdout.write(r.stdout)
       process.stderr.write(r.stderr)
       return r.exitCode ?? 2
@@ -328,11 +343,12 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
       return 0
     }
     if (cmd === 'init') {
-      await initConfig(file)
+      await initConfig(file, configOptions)
       console.log('Configuration ready: ' + file)
       return 0
     }
-    const config = await loadConfig(file, flow)
+    const config = await loadConfig(file, flow, configOptions)
+    const activeProfile = config.profile ? profiles.get(config.profile) : undefined
     const { root, inputPaths, ...settings } = config
     if (!flow) {
       console.log(
@@ -378,12 +394,12 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
     async function configuredInputs() {
       const entries = await Promise.all(
         inputPaths.map(async (file) => {
-          if (config.profile && file.startsWith(profilePrefix))
+          if (activeProfile && file.startsWith(activeProfile.prefix))
             return [
               file,
               file,
               createHash('sha256')
-                .update(await readFile(resource(file)))
+                .update(await readFile(activeProfile.resolveResource(file)))
                 .digest('hex')
             ]
           const path = await realpath(join(root, file))
@@ -403,12 +419,25 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
     }
     const initialInputs = await configuredInputs()
     metadata.configuredInputDigest = initialInputs
-    const loadFacts = async () => {
-      const facts = await collectFacts(root, resolve(root, config.storage.root))
+    const checkConfiguredInputs = async () => {
       if ((await configuredInputs()) !== initialInputs)
         throw new Error('Configured input changed during run')
+    }
+    const loadFacts = async () => {
+      const facts = await factsCollector(root, resolve(root, config.storage.root))
+      await checkConfiguredInputs()
       return facts
     }
+    const roundScope = createRoundScope(appContainer, {
+      config,
+      round,
+      signal: controller.signal,
+      checkConfiguredInputs
+    })
+    const scopedProfile = roundScope.get<ProfilePlugin | undefined>(
+      DI_TOKENS.ActiveProfile
+    )
+
     let regressed = false
     let result: unknown,
       report: string,
@@ -421,7 +450,8 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
         values,
         controller.signal,
         progress,
-        async () => (await loadFacts()).inputDigest
+        async () => (await loadFacts()).inputDigest,
+        scopedProfile
       )
       ;({ result, report, complete } = checked)
       regressed = checked.result.tasks.some((t) => t.verdict === 'regressed')
@@ -430,19 +460,24 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
         tasksPath: relative(root, join(round.output, 'tasks.md'))
       })
     } else if (follow) {
-      const response = await profileOperation(
+      const opPlugin = scopedProfile ?? actionDriverProfile
+      if (!opPlugin.runOperation) {
+        throw new Error('No profile registered to handle operation: ' + operation)
+      }
+      const response = await opPlugin.runOperation({
         config,
         round,
         operation,
-        values,
-        controller.signal,
-        initialInputs,
+        flags: values,
+        signal: controller.signal,
+        inputConfigDigest: initialInputs,
         progress
-      )
+      })
       ;({ result, report, complete } = response)
     } else if (flow === 'cleanup') {
       if (!config.flows.cleanup?.enabled)
         throw new Error('Cleanup flow disabled')
+      const cleanupPorts = roundScope.get<CleanupPorts>(DI_TOKENS.CleanupPorts)
       const checked = await check({
         root,
         config: config.flows.cleanup,
@@ -451,8 +486,8 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
         signal: controller.signal,
         loadFacts,
         progress,
-        debtAsOf: new Date().toISOString().slice(0, 10),
-        ports: { runKnip, runHook, writeEvidence, readDebt, runAudit },
+        ...(asOf ? { debtAsOf: asOf } : {}),
+        ports: cleanupPorts,
         baseline: await baselines(round, config.storage.output)
       })
       ;({ result, report, complete } = checked)
@@ -480,11 +515,24 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
       const facts = await loadFacts()
       ;({ result, report } = generate(facts, config.flows.architecture.outputs))
       if (config.flows.architecture.module) {
-        const { publishModule } = await import('../../architecture/src/module-output.js')
-        const moduleArtifacts = await publishModule(root, config.flows.architecture.module, round.output, controller.signal, Boolean(canPublishPreview))
+        const collector = roundScope.get<ArchitectureCollectorPort>(
+          DI_TOKENS.ArchitectureCollector
+        )
+        const renderer = roundScope.get<ArchitectureRendererPort>(
+          DI_TOKENS.ArchitectureRenderer
+        )
+        const moduleArtifacts = await publishArchitectureModule({
+          root,
+          config: config.flows.architecture.module,
+          output: round.output,
+          signal: controller.signal,
+          preview: Boolean(canPublishPreview),
+          collector,
+          renderer
+        })
         if ((await configuredInputs()) !== initialInputs || (canPublishPreview && !canPublishPreview()))
           throw new Error('Module inputs changed during generation')
-        result = { ...result as object, moduleArtifacts }
+        result = { ...(result as object), moduleArtifacts }
         report += '\n[模块网站](' + moduleArtifacts.site + ')\n'
       }
       metadata.inputDigest = facts.inputDigest
@@ -502,7 +550,6 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
       resultDigest: digest(result)
     })
     if (flow === 'architecture' && config.flows.architecture?.module && complete) {
-      const { markCurrent } = await import('../../architecture/src/workspace.js')
       await markCurrent(config, round)
     }
     if (flow !== 'architecture')
@@ -548,5 +595,6 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
     return controller.signal.aborted ? 130 : 2
   } finally {
     process.removeListener('SIGINT', interrupt)
+    process.removeListener('SIGTERM', interrupt)
   }
 }

@@ -1,26 +1,23 @@
-import {
-  resource,
-  profilePrefix
-} from 'architecture-kit/profiles/action-driver/resources.mjs'
-import { discoverPatterns } from '../../../packages/adapters/src/optimization-patterns.js'
+import { discoverPatterns } from '@architecture-kit/analyzers'
 import { createHash } from 'node:crypto'
 import { cpus, hostname, release } from 'node:os'
 import { readFile, realpath, lstat } from 'node:fs/promises'
 import { resolve, join, relative, sep, isAbsolute } from 'node:path'
 import type {
-  ResolvedConfig,
-  OptimizeTask
-} from '../../../packages/config/src/index.js'
-import type { Round } from '../../../packages/runtime/src/round.js'
+  OptimizeTask,
+  ProfilePlugin,
+  ResolvedConfig
+} from '@architecture-kit/ports'
 import {
   runProcess,
-  writeEvidence
-} from '../../../packages/runtime/src/process.js'
+  writeEvidence,
+  type Round
+} from '@architecture-kit/runtime'
 import {
   optimize,
   renderOptimize,
   type ResultTask
-} from '../../optimize/src/check.js'
+} from '@architecture-kit/flow-optimize'
 
 const hash = (s: Buffer | string) =>
   createHash('sha256').update(s).digest('hex')
@@ -78,7 +75,8 @@ export async function optimizeOperation(
   flags: { task?: string; from?: string; 'cleanup-from'?: string },
   signal: AbortSignal,
   progress: (s: string) => void,
-  snapshot: () => Promise<string>
+  snapshot: () => Promise<string>,
+  activeProfile?: ProfilePlugin
 ) {
   const cleanupSnapshot = flags['cleanup-from'] ? await snapshot() : null
   const tasks: OptimizeTask[] = [...config.flows.optimize!.tasks]
@@ -175,8 +173,8 @@ export async function optimizeOperation(
     }
   }
   async function projectInput(file: string) {
-    if (config.profile && file.startsWith(profilePrefix))
-      return readFile(resource(file))
+    if (activeProfile && file.startsWith(activeProfile.prefix))
+      return readFile(activeProfile.resolveResource(file))
     const rel = relative(
       resolve(config.root, config.storage.root),
       resolve(config.root, file)
@@ -243,7 +241,9 @@ export async function optimizeOperation(
       const proc = await runProcess(
         config.root,
         args.map((a) =>
-          config.profile && a.startsWith(profilePrefix) ? resource(a) : a
+          activeProfile && a.startsWith(activeProfile.prefix)
+            ? activeProfile.resolveResource(a)
+            : a
         ),
         signal,
         {

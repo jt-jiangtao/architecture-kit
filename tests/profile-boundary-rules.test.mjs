@@ -62,10 +62,11 @@ for (const [from, to, specifier] of [
   })
 
 test('boundary check accepts a workspace without product roots and still checks a partial workspace', async (t) => {
-  const { executeCommand } = await import('../profiles/action-driver/local-quality/native.mjs')
+  const { executeCommand } = await import('@architecture-kit/analyzers')
+  const { actionDriverCommandOptions } = await import('@architecture-kit/profile-action-driver')
   const root = await mkdtemp(join(tmpdir(), 'ad-partial-boundary-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const run = () => executeCommand(['pnpm', 'check:boundaries'], root)
+  const run = () => executeCommand(['pnpm', 'check:boundaries'], root, process.env, actionDriverCommandOptions)
   const empty = run()
   assert.equal(empty.code, 0)
   assert.match(empty.stdout, /No product source roots/)

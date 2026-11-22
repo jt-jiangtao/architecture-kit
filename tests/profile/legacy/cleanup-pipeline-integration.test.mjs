@@ -7,7 +7,7 @@ import {
   prepareCleanup,
   readDiffStats,
   verifyCleanup
-} from '../../../profiles/action-driver/audit-redundant/cleanup-pipeline.mjs'
+} from '@architecture-kit/analyzers'
 
 const project = path.resolve(import.meta.dirname, '../../..')
 

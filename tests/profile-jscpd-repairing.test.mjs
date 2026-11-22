@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { newDuplicateRecords } from '../profiles/action-driver/audit-redundant/cleanup-pipeline.mjs'
+import { newDuplicateRecords, hash, snapshotSourceReader } from '@architecture-kit/analyzers'
 
 test('re-pairing requires prior evidence for both exact occurrences in unchanged files', () => {
   const endpoint = name => ({ name, start: 3, end: 6, startLoc: { position: 10 }, endLoc: { position: 32 } })
@@ -59,8 +59,6 @@ test('baseline text can come from Git only when its digest matches the recorded 
   const { execFileSync } = await import('node:child_process')
   const { tmpdir } = await import('node:os')
   const { join } = await import('node:path')
-  const { hash } = await import('../profiles/action-driver/local-quality/native.mjs')
-  const { snapshotSourceReader } = await import('../profiles/action-driver/audit-redundant/clone-source-evidence.mjs')
   const root = mkdtempSync(join(tmpdir(), 'clone-evidence-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })

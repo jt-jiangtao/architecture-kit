@@ -3,8 +3,9 @@ import test from 'node:test'
 import { mkdtemp, mkdir, writeFile, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadConfig } from '../dist/packages/config/src/index.js'
-import { installRepairSkill } from '../dist/apps/cli/src/skills.js'
+import { createProfileRegistry, loadConfig } from '@architecture-kit/config'
+import { installRepairSkill } from '@architecture-kit/cli/skills'
+import { actionDriverProfile } from '@architecture-kit/profile-action-driver'
 import { resource, ruleSources } from '../profiles/action-driver/resources.mjs'
 
 test('profile resolves native rules and independent skills without consumer tool configuration', async (t) => {
@@ -26,7 +27,9 @@ test('profile resolves native rules and independent skills without consumer tool
     await mkdir(join(root, path, '..'), { recursive: true })
     await writeFile(join(root, path), '')
   }
-  const config = await loadConfig(file, 'cleanup')
+  const config = await loadConfig(file, 'cleanup', {
+    profiles: createProfileRegistry([actionDriverProfile])
+  })
   assert.equal(
     config.flows.cleanup.tools.knip.configFile,
     ruleSources['knip.jsonc']

@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { basename, join } from "node:path";
 import type { Change, RuntimeRun, RuntimeSnapshot } from "./snapshot.js";
+import { linkedChangeForText, type RuntimeProvider } from "./runtime-port.js";
 
 const execute = promisify(execFile);
 const blockedGoals: Record<string, string> = {
@@ -10,19 +11,6 @@ const blockedGoals: Record<string, string> = {
   budget_limited: "预算受限",
   usage_limited: "额度受限",
 };
-
-function linkedChange(text: string, changes: Change[]) {
-  const words = new Set(
-    text.toLowerCase().match(/[a-z0-9]+(?:-[a-z0-9]+)*/g) ?? [],
-  );
-  const exact = changes.filter((c) => words.has(c.id.toLowerCase()));
-  if (exact.length) return exact.length === 1 ? exact[0]!.id : null;
-  const matched = changes.filter((c) => {
-    const issue = c.id.match(/\bact-\d+(?=-|$)/i)?.[0];
-    return issue && words.has(issue.toLowerCase());
-  });
-  return matched.length === 1 ? matched[0]!.id : null;
-}
 
 // An interrupted app can leave an inProgress projection behind. Check for an
 // open writer descriptor, not merely the zero-byte lock file on disk.
@@ -55,6 +43,7 @@ export async function readCodexRuntime(
   home: string,
   root: string,
   changes: Change[],
+  issuePattern?: RegExp,
 ): Promise<RuntimeSnapshot> {
   const connections: DatabaseSync[] = [];
   function open(file: string) {
@@ -157,7 +146,7 @@ export async function readCodexRuntime(
       );
       runs.push({
         id,
-        changeId: linkedChange(objective || title, changes),
+        changeId: linkedChangeForText(objective || title, changes, issuePattern),
         title: title || "项目会话",
         state: status,
         lastFailure,
@@ -186,4 +175,14 @@ export async function readCodexRuntime(
   } finally {
     for (const db of connections) db.close();
   }
+}
+
+export function createCodexRuntimeProvider(
+  home: string,
+  issuePattern?: RegExp,
+): RuntimeProvider {
+  return {
+    read: (root, changes) =>
+      readCodexRuntime(home, root, changes, issuePattern),
+  };
 }

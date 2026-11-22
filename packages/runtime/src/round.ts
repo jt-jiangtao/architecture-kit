@@ -1,65 +1,39 @@
 import { randomUUID } from 'node:crypto'
+import { mkdir, readdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import type { FlowName, Round } from '@architecture-kit/core-ir'
 import {
-  lstat,
-  mkdir,
-  readdir,
-  readFile,
-  realpath,
-  rename,
-  writeFile
-} from 'node:fs/promises'
-import { join, isAbsolute } from 'node:path'
+  assertUnchangedDirectory,
+  ensureRealDirectory,
+  hasErrnoCode,
+  safeRelativeParts
+} from './paths.js'
 
-type Flow = 'cleanup' | 'architecture' | 'optimize'
-type Operation = string
+export { acquireLock, releaseLock } from './lock.js'
+export type { FlowName, Round }
+
 type RoundConfig = { root: string; storage: { root: string; output: string } }
-export type Round = {
-  runId: string
-  roundId: string
-  flow: Flow
-  operation: Operation
-  dir: string
-  output: string
-}
 
 export async function jsonFile(path: string, value: unknown) {
   const temp = path + '.' + randomUUID() + '.tmp'
-  await writeFile(temp, JSON.stringify(value, null, 2) + '\n', { flag: 'wx' })
-  await rename(temp, path)
-}
-
-function safeParts(path: string): string[] {
-  const parts = path.split('/').filter((p) => p && p !== '.')
-  if (
-    !parts.length ||
-    isAbsolute(path) ||
-    path.includes('\\') ||
-    parts.some((p) => !p || ['.', '..', '.git', 'node_modules'].includes(p))
-  ) {
-    throw new Error('Unsafe storage path: ' + path)
+  try {
+    await writeFile(temp, JSON.stringify(value, null, 2) + '\n', { flag: 'wx' })
+    await rename(temp, path)
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {})
+    throw error
   }
-  return parts
 }
 
 export async function ensureDirectory(parent: string, path: string) {
-  for (const part of safeParts(path)) {
-    parent = join(parent, part)
-    try {
-      await mkdir(parent)
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-    }
-    if (!(await lstat(parent)).isDirectory())
-      throw new Error('Expected a real directory: ' + parent)
-  }
-  return parent
+  return ensureRealDirectory(parent, path)
 }
 
 export async function openRound(
   c: RoundConfig,
-  flow: Flow,
+  flow: FlowName,
   requested: string | undefined,
-  operation: Operation
+  operation: string
 ): Promise<Round> {
   if (
     ![
@@ -80,7 +54,7 @@ export async function openRound(
   const runId = requested ?? randomUUID()
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}$/.test(runId))
     throw new Error('Invalid --run-id')
-  if (safeParts(c.storage.output)[0] === 'run.json')
+  if (safeRelativeParts(c.storage.output)[0] === 'run.json')
     throw new Error('output conflicts with run.json')
   const storage = await ensureDirectory(await realpath(c.root), c.storage.root)
   // Only initialize an empty artifact directory; an existing project's ignore
@@ -89,7 +63,7 @@ export async function openRound(
     try {
       await writeFile(join(storage, '.gitignore'), '*\n', { flag: 'wx' })
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      if (!hasErrnoCode(error, 'EEXIST')) throw error
     }
   }
   const run = await ensureDirectory(storage, [flow, runId].join('/'))
@@ -106,13 +80,13 @@ export async function openRound(
     try {
       await writeFile(reservation, '', { flag: 'wx' })
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'EEXIST') continue
+      if (hasErrnoCode(error, 'EEXIST')) continue
       throw error
     }
     try {
       await mkdir(dir)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'EEXIST') continue
+      if (hasErrnoCode(error, 'EEXIST')) continue
       throw error
     }
     const output = await ensureDirectory(dir, c.storage.output)
@@ -122,17 +96,12 @@ export async function openRound(
   }
 }
 
-async function assertSameDirectory(path: string) {
-  if ((await realpath(path)) !== path)
-    throw new Error('Artifact directory changed: ' + path)
-}
-
 export async function publishResults(
   r: Round,
   result: unknown,
   report: string
 ) {
-  await assertSameDirectory(r.output)
+  await assertUnchangedDirectory(r.output)
   await writeFile(
     join(r.output, 'result.json'),
     JSON.stringify(result, null, 2) + '\n',
@@ -142,7 +111,7 @@ export async function publishResults(
 }
 
 export async function finishRound(r: Round, metadata: Record<string, unknown>) {
-  await assertSameDirectory(r.dir)
+  await assertUnchangedDirectory(r.dir)
   await jsonFile(join(r.dir, 'run.json'), {
     schemaVersion: 1,
     flow: r.flow,
@@ -185,7 +154,7 @@ export async function baselines(r: Round, storageOutput: string) {
         findingIds: result.findings.map((f: { id: string }) => f.id)
       })
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (!hasErrnoCode(error, 'ENOENT')) throw error
     }
   }
   return history

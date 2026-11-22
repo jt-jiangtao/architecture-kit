@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { discoverModules } from '../dist/packages/config/src/discover.js'
+import { discoverModules } from '@architecture-kit/analyzers'
 
 test('discover only opted-in workspace owners, resolving conditional root exports', async t => {
   const root = await mkdtemp(join(tmpdir(), 'named-inputs-'))

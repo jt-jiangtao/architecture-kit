@@ -1,23 +1,20 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "skipLibCheck": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "types": [
-      "node"
-    ],
-    "rootDir": ".",
-    "outDir": "dist",
-    "noEmitOnError": true,
-    "declaration": true
-  },
-  "include": [
-    "src/**/*.ts",
-    "apps/**/*.ts",
-    "packages/**/*.ts"
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.root.json" },
+    { "path": "./packages/core-ir" },
+    { "path": "./packages/ports" },
+    { "path": "./packages/runtime" },
+    { "path": "./packages/config" },
+    { "path": "./packages/analyzers" },
+    { "path": "./packages/renderers" },
+    { "path": "./packages/flow-architecture" },
+    { "path": "./packages/flow-cleanup" },
+    { "path": "./packages/flow-optimize" },
+    { "path": "./packages/profile-action-driver" },
+    { "path": "./apps/mcp-server" },
+    { "path": "./apps/dev-server" },
+    { "path": "./apps/cli" },
+    { "path": "./apps/project-panel" }
   ]
 }

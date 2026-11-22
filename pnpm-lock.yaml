@@ -242,12 +242,6 @@ importers:
 
   apps/project-panel:
     dependencies:
-      '@action-driver/codex-tokens':
-        specifier: link:../../../action-driver/packages/ui/codex-tokens
-        version: link:../../../action-driver/packages/ui/codex-tokens
-      '@action-driver/ui-components':
-        specifier: link:../../../action-driver/packages/ui/components
-        version: link:../../../action-driver/packages/ui/components
       markdown-it:
         specifier: 14.3.3
         version: 14.3.3

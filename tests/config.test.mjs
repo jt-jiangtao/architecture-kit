@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, realpath, readFile, rm, symlink, unlink, writeFile } fr
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { initConfig, loadConfig } from '../dist/packages/config/src/index.js'
+import { generateConfigJsonSchema, initConfig, loadConfig } from '@architecture-kit/config'
 
 const json = async (path, value) => writeFile(path, JSON.stringify(value))
 const read = async path => JSON.parse(await readFile(path, 'utf8'))
@@ -149,4 +149,19 @@ test('cleanup and optimize can load even when the architecture module descriptor
     assert.equal((await loadConfig(file, flow)).flows[flow].enabled, true)
   }
   await assert.rejects(loadConfig(file, 'architecture'), /missing-module/)
+})
+
+test('generateConfigJsonSchema emits strict JSON Schemas for root and flow configs', () => {
+  const schemas = generateConfigJsonSchema()
+  for (const [name, requiredProp] of [
+    ['root', 'schemaVersion'],
+    ['cleanup', 'tools'],
+    ['architecture', 'outputs'],
+    ['optimize', 'tasks']
+  ]) {
+    const schema = schemas[name]
+    assert.equal(schema.type, 'object')
+    assert.equal(schema.additionalProperties, false)
+    assert.ok(Object.hasOwn(schema.properties ?? {}, requiredProp), `${name} missing ${requiredProp}`)
+  }
 })

@@ -10,11 +10,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import {
-  current,
-  initDocs,
-  markCurrent,
-} from "../dist/apps/architecture/src/workspace.js";
+import { current, markCurrent } from "@architecture-kit/runtime";
+import { initDocs } from "@architecture-kit/dev-server";
 
 test("workspace preserves a handwritten entry and resolves only complete in-tree rounds", async (t) => {
   const root = await realpath(
@@ -127,4 +124,86 @@ test("two stdio clients follow the same published round without loading broken m
       );
     }
   }
+});
+
+test("MCP server disambiguates duplicate symbols, scopes component relations, and validates strict tool schemas", async (t) => {
+  const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+  const { StdioClientTransport } =
+    await import("@modelcontextprotocol/sdk/client/stdio.js");
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "architecture-mcp-strict-")),
+  );
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const config = { root, storage: { root: ".records", output: "out" } };
+  await writeFile(
+    join(root, "architecture-kit.config.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      storage: config.storage,
+      profile: "action-driver",
+    }),
+  );
+  const dir = join(root, ".records/architecture/shared/001-generate");
+  const site = join(dir, "out/site");
+  await mkdir(site, { recursive: true });
+  await writeFile(join(dir, "run.json"), '{"status":"complete"}');
+  await writeFile(
+    join(site, "architecture.graph.json"),
+    JSON.stringify({
+      mode: "commit",
+      revision: "abc123",
+      modules: [
+        {
+          package: "pkg-a",
+          component: { id: "comp-a", title: "A" },
+          apis: [{ id: "pkg-a#dup", name: "dup", file: "a.ts" }],
+          decisions: [{ id: "d1", affectedApis: ["pkg-a#dup"], tests: [] }],
+        },
+        {
+          package: "pkg-b",
+          component: { id: "comp-b", title: "B" },
+          apis: [{ id: "pkg-b#dup", name: "dup", file: "b.ts" }],
+          decisions: [],
+        },
+      ],
+      relations: [
+        { from: "comp-a", to: "comp-b", label: "uses" },
+        { from: "comp-c", to: "comp-d", label: "unrelated" },
+      ],
+    }),
+  );
+  await writeFile(
+    join(site, "reading-guide.json"),
+    JSON.stringify({ modules: [{ id: "comp-a", package: "pkg-a", title: "A", entry: "a.ts", route: "/a", documents: [] }], types: [], documents: [] }),
+  );
+  await markCurrent(config, { runId: "shared", roundId: "001-generate" });
+
+  const client = new Client({ name: "strict-test", version: "1" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [
+      new URL("../bin/architecture-kit.mjs", import.meta.url).pathname,
+      "architecture",
+      "mcp",
+    ],
+    cwd: root,
+  });
+  await client.connect(transport);
+  t.after(() => client.close());
+
+  const tools = await client.listTools();
+  const listModulesSchema = tools.tools.find((item) => item.name === "list_modules").inputSchema;
+  assert.deepEqual(Object.keys(listModulesSchema.properties ?? {}), []);
+
+  const ambiguous = await client.callTool({ name: "lookup_symbol", arguments: { id: "dup" } });
+  assert.equal(ambiguous.isError, true);
+  assert.match(ambiguous.content[0].text, /Ambiguous symbol/);
+
+  const exact = await client.callTool({ name: "lookup_symbol", arguments: { id: "pkg-a#dup" } });
+  assert.equal(exact.isError, undefined);
+  assert.equal(exact.structuredContent.value.api.id, "pkg-a#dup");
+
+  const comp = await client.callTool({ name: "get_component", arguments: { id: "comp-a" } });
+  assert.equal(comp.structuredContent.value.relations.length, 1);
+  assert.equal(comp.structuredContent.value.relations[0].from, "comp-a");
 });

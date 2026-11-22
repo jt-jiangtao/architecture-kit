@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { runDeadTests } from '@architecture-kit/analyzers'
 
 test('dead-test audit resolves source imports and ignores embedded fixture programs', t => {
   const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'dead-test-imports-'))
@@ -24,8 +24,7 @@ test('dead-test audit resolves source imports and ignores embedded fixture progr
     "const fixture = \"import './relative-to-fixture'\"",
     "const jsx = <span>import './jsx-text'</span>"
   ].join('\n'))
-  const stage = path.resolve(import.meta.dirname, '../profiles/action-driver/audit-redundant/12-dead-tests.mjs')
-  execFileSync(process.execPath, [stage], { cwd: root, env: { ...process.env, AUDIT_REDUNDANT_OUT: out } })
+  runDeadTests(root, out)
   const report = JSON.parse(fs.readFileSync(path.join(out, 'dead-tests.json')))
   assert.deepEqual(report.brokenImports.map(row => row.spec).sort(), [
     './missing-cjs', './missing-export', './missing-lazy', './missing-side-effect', './missing-type'

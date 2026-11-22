@@ -1,9 +1,9 @@
-import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
-import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
-import { join, relative, resolve, sep } from 'node:path'
-import type { HookConfig } from '../../config/src/index.js'
-import type { Debt, ProcessResult } from '../../../apps/cleanup/src/ports.js'
+import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
+import type { Debt } from '@architecture-kit/core-ir'
+import type { HookConfig, ProcessResult, ProcessRunOptions } from '@architecture-kit/ports'
+import { assertUnchangedDirectory, assertWithinRoot, hasErrnoCode } from './paths.js'
 
 /** Own a process group so cancelling pnpm also terminates the script it started. */
 export function runProcess(
@@ -11,11 +11,14 @@ export function runProcess(
   argv: string[],
   signal: AbortSignal,
   env = process.env,
-  profileProgress = false
+  profileProgress = false,
+  options: ProcessRunOptions = {}
 ): Promise<ProcessResult> {
   signal.throwIfAborted()
   const [program, ...args] = argv
   if (!program) throw new Error('Expected a nonempty command')
+  const timeoutMs = options.timeoutMs ?? 600_000
+  const maxBufferBytes = options.maxBufferBytes ?? 64 * 1024 * 1024
   return new Promise((resolveProcess) => {
     const grouped = process.platform !== 'win32'
     const child = spawn(program, args, {
@@ -27,49 +30,97 @@ export function runProcess(
     })
     const stdout: Buffer[] = [],
       stderr: Buffer[] = []
-    child.stdout!.on('data', (chunk) => stdout.push(chunk))
-    child.stderr!.on('data', (chunk) => stderr.push(chunk))
-    let timer: NodeJS.Timeout | undefined
+    let stdoutBytes = 0,
+      stderrBytes = 0,
+      truncated = false,
+      terminated = false,
+      settled = false
+    let killTimer: NodeJS.Timeout | undefined
+    let timeoutTimer: NodeJS.Timeout | undefined
+
     const kill = (sig: NodeJS.Signals) => {
-      if (child.pid)
-        try {
-          process.kill(grouped ? -child.pid : child.pid, sig)
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
-        }
-    }
-    const cancel = () => {
-      kill('SIGTERM')
-      timer = setTimeout(() => kill('SIGKILL'), 500)
-      timer.unref()
-    }
-    signal.addEventListener('abort', cancel, { once: true })
-    child.on('error', (error) => stderr.push(Buffer.from(error.message)))
-    child.on('close', (code) => {
-      if (timer) {
-        clearTimeout(timer)
-        // close fires after this detached process and all inherited pipes have closed.
+      if (!child.pid) return
+      try {
+        process.kill(grouped ? -child.pid : child.pid, sig)
+      } catch {
+        /* ignore ESRCH / already exited */
       }
+    }
+    const terminate = (note?: string) => {
+      terminated = true
+      if (note) stderr.push(Buffer.from(note))
+      kill('SIGTERM')
+      if (!killTimer) {
+        killTimer = setTimeout(() => kill('SIGKILL'), 500)
+        killTimer.unref()
+      }
+    }
+    const append = (chunks: Buffer[], chunk: Buffer, current: number) => {
+      if (truncated || current >= maxBufferBytes) {
+        if (!truncated) {
+          truncated = true
+          terminate('\n[output truncated: exceeded maxBufferBytes]')
+        }
+        return current
+      }
+      const remaining = maxBufferBytes - current
+      if (chunk.length > remaining) {
+        chunks.push(chunk.subarray(0, remaining))
+        truncated = true
+        terminate('\n[output truncated: exceeded maxBufferBytes]')
+        return maxBufferBytes
+      }
+      chunks.push(chunk)
+      return current + chunk.length
+    }
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdoutBytes = append(stdout, chunk, stdoutBytes)
+    })
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderrBytes = append(stderr, chunk, stderrBytes)
+    })
+
+    const cancel = () => terminate()
+    signal.addEventListener('abort', cancel, { once: true })
+    if (timeoutMs > 0) {
+      timeoutTimer = setTimeout(() => {
+        terminate('\n[process timed out]')
+      }, timeoutMs)
+      timeoutTimer.unref()
+    }
+
+    const finish = (code: number | null) => {
+      if (settled) return
+      settled = true
+      if (killTimer) clearTimeout(killTimer)
+      if (timeoutTimer) clearTimeout(timeoutTimer)
+      if (terminated) kill('SIGKILL')
       signal.removeEventListener('abort', cancel)
       resolveProcess({
         exitCode: code,
         stdout: Buffer.concat(stdout).toString(),
         stderr: Buffer.concat(stderr).toString()
       })
+    }
+
+    child.on('error', (error) => {
+      stderr.push(Buffer.from(error.message))
+      if (!child.pid) finish(null)
+    })
+    child.on('close', (code) => {
+      finish(code)
     })
   })
 }
+
 export function runHook(root: string, hook: HookConfig, signal: AbortSignal) {
   const argv = hook.command ?? [process.execPath, resolve(root, hook.script!)]
   if (argv[0] === 'architecture-kit') {
-    const cli = fileURLToPath(import.meta.resolve('architecture-kit'))
+    const cli = resolve(import.meta.dirname, '../../../bin/architecture-kit.mjs')
     return runProcess(
       root,
-      [
-        process.execPath,
-        resolve(cli, '../../../bin/architecture-kit.mjs'),
-        ...argv.slice(1)
-      ],
+      [process.execPath, cli, ...argv.slice(1)],
       signal
     )
   }
@@ -86,14 +137,13 @@ export async function writeEvidence(
     throw new Error('Unsafe evidence path')
   let dir = output
   const leaf = segments.pop()!
-  if ((await realpath(output)) !== resolve(output))
-    throw new Error('Evidence directory changed')
+  await assertUnchangedDirectory(output)
   for (const segment of segments) {
     dir = join(dir, segment)
     try {
       await mkdir(dir)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      if (!hasErrnoCode(error, 'EEXIST')) throw error
     }
     if (!(await lstat(dir)).isDirectory())
       throw new Error('Invalid evidence directory')
@@ -106,9 +156,12 @@ export async function readDebt(
   file: string,
   asOf: string
 ): Promise<Debt[]> {
-  const path = await realpath(resolve(root, file))
-  if (relative(await realpath(root), path).split(sep)[0] === '..')
+  let path: string
+  try {
+    path = await assertWithinRoot(root, file)
+  } catch {
     throw new Error('Debt reference escapes repository')
+  }
   const data = JSON.parse(await readFile(path, 'utf8'))
   if (data?.schemaVersion !== 1 || !Array.isArray(data.items))
     throw new Error('Unsupported debt registry')

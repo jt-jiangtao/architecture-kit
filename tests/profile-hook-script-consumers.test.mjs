@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { runFalsePositiveTriage } from '@architecture-kit/analyzers'
 
 test('triage preserves scripts called by Codex without recording hook arguments', t => {
   const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'hook-script-'))
@@ -19,8 +19,7 @@ test('triage preserves scripts called by Codex without recording hook arguments'
   ] } }))
   for (const [name, value] of [['import-graph', { fullyOrphan: [file] }], ['ast-reachability', {}], ['scripts-orphans', {}]])
     fs.writeFileSync(path.join(out, name + '.json'), JSON.stringify(value))
-  const stage = path.resolve(import.meta.dirname, '../profiles/action-driver/audit-redundant/08-false-positive-triage.mjs')
-  execFileSync(process.execPath, [stage], { cwd: root, env: { ...process.env, AUDIT_REDUNDANT_OUT: out } })
+  runFalsePositiveTriage(root, out)
   const report = fs.readFileSync(path.join(out, 'false-positive-triage.json'), 'utf8')
   assert.equal(JSON.parse(report).all[0].evidences[0]?.from, '.codex/hooks.json')
   assert.ok(!report.includes('private-argument'))

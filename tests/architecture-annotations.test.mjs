@@ -4,7 +4,7 @@ import { mkdtemp, realpath, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { moduleGraph } from "../dist/apps/architecture/src/module-graph.js";
+import { moduleGraph } from "@architecture-kit/analyzers";
 import { LikeC4 } from "likec4";
 
 test("source decisions survive barrel exports and test moves; dangling annotations fail", async (t) => {

@@ -2,14 +2,27 @@
   "name": "@architecture-kit/project-panel",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist-server/server.d.ts",
+      "default": "./dist-server/server.js"
+    },
+    "./snapshot": {
+      "types": "./dist-server/snapshot.d.ts",
+      "default": "./dist-server/snapshot.js"
+    },
+    "./runtime-port": {
+      "types": "./dist-server/runtime-port.d.ts",
+      "default": "./dist-server/runtime-port.js"
+    }
+  },
   "scripts": {
     "build": "vite build",
-    "start": "node ../../dist/apps/project-panel/src/server.js",
+    "build:server": "tsc -b tsconfig.json",
+    "start": "node ./dist-server/server.js",
     "typecheck": "tsc -p tsconfig.ui.json"
   },
   "dependencies": {
-    "@action-driver/ui-components": "link:../../../action-driver/packages/ui/components",
-    "@action-driver/codex-tokens": "link:../../../action-driver/packages/ui/codex-tokens",
     "markdown-it": "14.3.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"

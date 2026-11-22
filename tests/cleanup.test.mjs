@@ -4,9 +4,10 @@ import test from 'node:test'
 import { mkdtemp, readFile, writeFile, mkdir, rm, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { check } from '../dist/apps/cleanup/src/check.js'
-import { runKnip } from '../dist/packages/adapters/src/knip.js'
-import { runHook, writeEvidence, readDebt } from '../dist/packages/runtime/src/process.js'
+import { check } from '@architecture-kit/flow-cleanup'
+import { runKnip } from '@architecture-kit/analyzers'
+import { runHook, writeEvidence, readDebt } from '@architecture-kit/runtime'
+import { sarifFromCleanup } from '@architecture-kit/renderers'
 
 const modes = ['default', 'production']
 const issueRows = [
@@ -238,4 +239,238 @@ test('enabled Knip with implicit config cannot produce a comparable baseline', a
   next.config.tools.knip.configFile = null
   next.baseline = [{ roundId: '001-check', comparisonKey: first.comparisonKey, findingIds: [] }]
   assert.equal((await check(next)).comparison.status, 'incomparable')
+})
+test('policy merges sources deterministically, Knip 6.x is accepted, and configDigest survives skipped second mode', async (t) => {
+  const { findingsFrom } = await import('@architecture-kit/flow-cleanup')
+  const merged = findingsFrom(
+    {
+      schemaVersion: 1,
+      inputDigest: 'd',
+      scope: ['pkg'],
+      packages: [{ id: 'package:pkg', name: 'pkg', dir: 'pkg', sourceRef: 'pkg/package.json' }],
+      files: [{ id: 'file:pkg/a.ts', path: 'pkg/a.ts', package: 'pkg', sourceRef: 'pkg/a.ts' }],
+      entries: [],
+      relations: [],
+      unresolved: []
+    },
+    [
+      { file: 'tools/knip/production/result.json', observations: [{ id: 'o2', rule: 'exports', target: 'pkg/a.ts', symbol: 'x', pointer: '/issues/0' }] },
+      { file: 'tools/knip/default/result.json', observations: [{ id: 'o1', rule: 'exports', target: 'pkg/a.ts', symbol: 'x', pointer: '/issues/0' }] }
+    ],
+    [],
+    []
+  )
+  assert.deepEqual(merged.findings[0].evidence.map((e) => e.file), [
+    'result.json',
+    'tools/knip/default/result.json',
+    'tools/knip/production/result.json'
+  ])
+
+  const ctx = await fixture(t)
+  await writeFile(
+    join(ctx.root, 'node_modules/knip/package.json'),
+    JSON.stringify({ name: 'knip', version: '6.44.0', bin: { knip: 'bin/knip.js' } })
+  )
+  let calls = 0
+  const baseRunKnip = ctx.ports.runKnip
+  ctx.ports.runKnip = async (root, mode, cfg, sig) => {
+    calls++
+    if (calls === 2) {
+      return {
+        argv: [],
+        exitCode: 2,
+        stdout: '',
+        stderr: 'boom',
+        configDigest: null,
+        version: '6.44.0',
+        status: 'failed',
+        reason: 'execution-failed',
+        observations: []
+      }
+    }
+    return baseRunKnip(root, mode, cfg, sig)
+  }
+  ctx.config.tools.knip.required = false
+  const res = await check(ctx)
+  assert.equal(res.complete, true)
+  assert.equal(res.toolVersions.knip, '6.44.0')
+  assert.equal(res.comparison.status, 'first')
+})
+
+test('sarifFromCleanup emits valid SARIF 2.1.0 and check uses computeDigest to avoid duplicate loadFacts', async (t) => {
+  const ctx = await fixture(t)
+  let loadCount = 0
+  const baseLoadFacts = ctx.loadFacts
+  ctx.loadFacts = async () => {
+    loadCount++
+    return baseLoadFacts()
+  }
+  let digestValue = 'abc'
+  ctx.ports.computeDigest = async () => digestValue
+  const okRun = await check(ctx)
+  assert.equal(okRun.complete, true)
+  assert.equal(loadCount, 1)
+
+  const sarif = sarifFromCleanup(okRun.result, '1.2.3')
+  assert.equal(sarif.version, '2.1.0')
+  assert.match(sarif.$schema, /sarif-2\.1\.0/)
+  assert.equal(sarif.runs[0].tool.driver.version, '1.2.3')
+  assert.equal(sarif.runs[0].results.length, okRun.result.findings.length)
+  const expectedLevel = (l) => (l === 'L1' || l === 'L2' ? 'warning' : l === 'L3' ? 'note' : 'none')
+  assert.equal(sarif.runs[0].results[0].level, expectedLevel(okRun.result.findings[0].level))
+
+  const driftedCtx = await fixture(t)
+  let driftedLoads = 0
+  const baseDriftedFacts = driftedCtx.loadFacts
+  driftedCtx.loadFacts = async () => {
+    driftedLoads++
+    return baseDriftedFacts()
+  }
+  driftedCtx.ports.computeDigest = async () => 'changed-digest'
+  const drifted = await check(driftedCtx)
+  assert.equal(driftedLoads, 1)
+  assert.equal(drifted.complete, false)
+  assert.ok(drifted.result.coverageGaps.some((g) => g.reason === 'input-changed'))
+})
+
+test('cleanup check shares Knip runs with prepareCleanup so Knip runs once per mode and local-quality runs only jscpd', async (t) => {
+  const { prepareCleanup } = await import('@architecture-kit/analyzers')
+  const { createHash } = await import('node:crypto')
+  const ctx = await fixture(t)
+  ctx.config.tools.actionDriver = { enabled: true, required: true }
+  let knipCalls = 0
+  const baseRunKnip = ctx.ports.runKnip
+  ctx.ports.runKnip = async (root, mode, cfg, sig) => {
+    knipCalls++
+    return baseRunKnip(root, mode, cfg, sig)
+  }
+  const executedCommands = []
+  let receivedShared = null
+  ctx.ports.runAudit = async (root, _output, _storage, _signal, shared) => {
+    receivedShared = shared
+    const outRel = 'custom/evidence/tools/action-driver/audit'
+    const snapshot = {
+      digest: 'snap-shared',
+      head: 'abc',
+      files: { 'pkg/public.ts': 'h1', 'pkg/lib.ts': 'h2' },
+      inputs: { 'pkg/public.ts': 'h1', 'pkg/lib.ts': 'h2' }
+    }
+    const fsSync = await import('node:fs')
+    const prep = await prepareCleanup({
+      root,
+      out: outRel,
+      shared,
+      ports: {
+        snapshot: () => snapshot,
+        execute: (command) => {
+          executedCommands.push(command)
+          const outArg = command[command.indexOf('--out') + 1]
+          const runDir = join(root, outArg)
+          fsSync.mkdirSync(runDir, { recursive: true })
+          if (command.some((p) => p.includes('run-all.mjs') || p.includes('run-deep.mjs'))) {
+            fsSync.writeFileSync(
+              join(runDir, 'scan.json'),
+              JSON.stringify({ schema: 1, snapshot, stages: ['all', 'deep'] })
+            )
+            fsSync.writeFileSync(
+              join(runDir, 'false-positive-refined.json'),
+              JSON.stringify({ provenUnreachable: [] })
+            )
+            fsSync.writeFileSync(
+              join(runDir, 'symbol-dead-code.json'),
+              JSON.stringify({ deadValueExports: [] })
+            )
+            fsSync.writeFileSync(
+              join(runDir, 'dead-tests.json'),
+              JSON.stringify({ brokenImports: [], unreferencedFixtures: [] })
+            )
+          } else if (command.some((p) => p.includes('local-quality/run.mjs'))) {
+            fsSync.writeFileSync(
+              join(runDir, 'results.json'),
+              JSON.stringify({
+                results: [
+                  {
+                    id: 'jscpd',
+                    execution: 'success',
+                    verdict: 'pass',
+                    findings: [],
+                    required: true
+                  }
+                ]
+              })
+            )
+          }
+          return { code: 0, stdout: '', stderr: '', signal: null }
+        }
+      }
+    })
+    const bytes = await readFile(prep.ledgerPath)
+    return {
+      exitCode: prep.exitCode,
+      stdout: prep.ledgerPath,
+      stderr: '',
+      ledgerDigest: createHash('sha256').update(bytes).digest('hex'),
+      candidates: prep.ledger.candidates.map((c) => ({
+        id: c.id,
+        level: c.level,
+        kind: c.kind,
+        targets: c.targets,
+        state: c.state
+      })),
+      sharedKnipUsed: prep.sharedKnipUsed
+    }
+  }
+
+  const checked = await check(ctx)
+  assert.equal(checked.complete, true)
+  assert.equal(knipCalls, 2)
+  assert.ok(receivedShared)
+  assert.equal(receivedShared.knipRuns.length, 2)
+  const qualityCmd = executedCommands.find((cmd) =>
+    cmd.some((part) => part.includes('local-quality/run.mjs'))
+  )
+  assert.ok(qualityCmd)
+  const onlyFlagIdx = qualityCmd.indexOf('--only')
+  assert.equal(qualityCmd[onlyFlagIdx + 1], 'jscpd')
+  const auditResult = JSON.parse(
+    await readFile(join(ctx.output, 'tools/action-driver/result.json'), 'utf8')
+  )
+  assert.equal(auditResult.sharedKnipUsed, true)
+  assert.ok(checked.result.audit.candidates.some((c) => c.kind === 'knip-unused-file'))
+})
+
+test('InversifyJS DI container hierarchy resolves root singletons and per-round child scopes cleanly', async () => {
+  const { createAppContainer, createRoundScope } = await import('@architecture-kit/cli')
+  const { DI_TOKENS } = await import('@architecture-kit/ports')
+
+  const appContainer = await createAppContainer()
+  const registry = appContainer.get(DI_TOKENS.ProfileRegistry)
+  assert.equal(registry.get('action-driver')?.id, 'action-driver')
+
+  const fakeConfig = {
+    schemaVersion: 1,
+    profile: 'action-driver',
+    root: '/tmp/example',
+    inputPaths: [],
+    storage: { root: '.architecture-kit', output: 'output' },
+    flows: {}
+  }
+  const controller = new AbortController()
+  const scopeA = createRoundScope(appContainer, {
+    config: fakeConfig,
+    signal: controller.signal
+  })
+  const scopeB = createRoundScope(appContainer, {
+    config: { ...fakeConfig, profile: undefined },
+    signal: controller.signal
+  })
+
+  assert.equal(scopeA.get(DI_TOKENS.ActiveProfile)?.id, 'action-driver')
+  assert.equal(scopeB.get(DI_TOKENS.ActiveProfile), undefined)
+  // Root container default ActiveProfile remains untouched by child scopeB
+  assert.equal(appContainer.get(DI_TOKENS.ActiveProfile)?.id, 'action-driver')
+  const portsA = scopeA.get(DI_TOKENS.CleanupPorts)
+  assert.equal(typeof portsA.runKnip, 'function')
+  assert.equal(typeof portsA.runAudit, 'function')
+  assert.equal(typeof portsA.computeDigest, 'function')
 })

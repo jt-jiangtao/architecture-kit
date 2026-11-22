@@ -128,3 +128,45 @@ test(
     assert.equal(record.status, 'incomplete')
   }
 )
+
+test('cleanup check --as-of evaluates debt deterministically and rejects invalid usage', async (t) => {
+  const { readFile, writeFile } = await import('node:fs/promises')
+  const cwd = await mkdtemp(join(tmpdir(), 'kit-asof-'))
+  t.after(() => rm(cwd, { recursive: true, force: true }))
+  const run = (...args) => spawnSync(process.execPath, [bin, ...args], { cwd, encoding: 'utf8' })
+  assert.equal(run('init').status, 0)
+  const cfgPath = join(cwd, 'config/architecture-kit/cleanup.json')
+  const cfg = JSON.parse(await readFile(cfgPath, 'utf8'))
+  cfg.tools.knip.enabled = false
+  cfg.debt = 'debt.json'
+  await writeFile(cfgPath, JSON.stringify(cfg))
+  await writeFile(
+    join(cwd, 'debt.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      items: [
+        {
+          id: 'CD-001',
+          owner: 'team',
+          reason: 'temp',
+          removeWhen: 'v2',
+          expiresAt: '2026-06-01',
+          targets: [{ file: 'src/old.ts' }]
+        }
+      ]
+    })
+  )
+  const beforeExpiry = run('cleanup', 'check', '--as-of', '2026-05-01', '--json')
+  assert.equal(beforeExpiry.status, 0, beforeExpiry.stderr)
+  const res1 = JSON.parse(await readFile(join(cwd, JSON.parse(beforeExpiry.stdout).resultPath), 'utf8'))
+  assert.equal(res1.findings.length, 0)
+
+  const afterExpiry = run('cleanup', 'check', '--as-of', '2026-07-01', '--json')
+  assert.equal(afterExpiry.status, 0, afterExpiry.stderr)
+  const res2 = JSON.parse(await readFile(join(cwd, JSON.parse(afterExpiry.stdout).resultPath), 'utf8'))
+  assert.equal(res2.findings.length, 1)
+  assert.equal(res2.findings[0].rule, 'expired-debt')
+
+  assert.equal(run('cleanup', 'check', '--as-of', 'not-a-date').status, 2)
+  assert.equal(run('architecture', 'generate', '--as-of', '2026-07-01').status, 2)
+})

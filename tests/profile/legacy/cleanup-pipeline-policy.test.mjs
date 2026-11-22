@@ -5,7 +5,7 @@ import {
   buildCleanupLedger,
   validateCleanupDiff,
   validateCleanupLedger
-} from '../../../profiles/action-driver/audit-redundant/cleanup-policy.mjs'
+} from '@architecture-kit/analyzers/audit/policy'
 
 const snapshot = {
   digest: 'snapshot-a',
