@@ -30,7 +30,7 @@ module.exports = {
   options: {
     doNotFollow: { path: 'node_modules' },
     exclude: {
-      path: '(^|/)(dist|out|vendor|thirdparty)/|^apps/mobile/|^packages/ui/workbench/ui/src/review/pdf-worker\\.mjs$'
+      path: '(^|/)(dist|out|vendor|thirdparty)/|^apps/mobile/|^packages/ui/workbench/ui/src/(?:codex/)?review/pdf-worker\\.mjs$'
     },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {
