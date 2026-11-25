@@ -1,5 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { parseAllDocuments } from 'yaml'
 import {
   assertArtifactDir,
   changedFiles,
@@ -39,6 +41,44 @@ export interface LocalQualityRunResult {
   exitCode: number
 }
 
+function dependencyManifests(repo: string): Record<string, number> {
+  const minimum: Record<string, number> = {}
+  for (const file of ['pnpm-lock.yaml', 'mcp-servers/cua/pnpm-lock.yaml']) {
+    if (file !== 'pnpm-lock.yaml' && !fs.existsSync(path.join(repo, file))) continue
+    const names = new Set<string>()
+    for (const document of parseAllDocuments(fs.readFileSync(path.join(repo, file), 'utf8'))) {
+      if (document.errors.length) throw document.errors[0]
+      const lock = document.toJS() as { packages?: Record<string, unknown> }
+      for (const key of Object.keys(lock.packages ?? {})) {
+        if (/^(?:@[^/]+\/)?[^@/]+@\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(key)) names.add(key)
+      }
+    }
+    minimum[file] = names.size
+  }
+  if (!fs.existsSync(path.join(repo, 'go.work'))) return minimum
+  const goEdit = (args: string[]) =>
+    JSON.parse(execFileSync('go', args, { cwd: repo, encoding: 'utf8' }))
+  const workspace = goEdit(['work', 'edit', '-json', 'go.work']) as {
+    Use: { DiskPath: string }[] | null
+  }
+  for (const { DiskPath } of workspace.Use ?? []) {
+    const file = path.relative(repo, path.resolve(repo, DiskPath, 'go.mod'))
+    if (file.startsWith('..' + path.sep) || path.isAbsolute(file))
+      throw new Error('Go module outside repository: ' + DiskPath)
+    const mod = goEdit(['mod', 'edit', '-json', file]) as {
+      Require: { Path: string }[] | null
+      Replace: { Old: { Path: string }; New: { Version?: string } }[] | null
+    }
+    const local = new Set(
+      (mod.Replace ?? []).filter((item) => !item.New.Version).map((item) => item.Old.Path)
+    )
+    minimum[file.split(path.sep).join('/')] = (mod.Require ?? []).filter(
+      (item) => !local.has(item.Path)
+    ).length
+  }
+  return minimum
+}
+
 export async function runLocalQuality(options: LocalQualityOptions = {}): Promise<LocalQualityRunResult> {
   const mode = options.mode ?? 'full'
   const repo = path.resolve(options.repo ?? process.cwd())
@@ -60,6 +100,7 @@ export async function runLocalQuality(options: LocalQualityOptions = {}): Promis
     out,
     tests: options.tests,
     deepSecurity: options.deepSecurity,
+    dependencyManifests: options.deepSecurity ? dependencyManifests(repo) : undefined,
     auditRedundant: options.auditRedundant,
     gitleaksConfig: cmdOpts.gitleaksConfig
   })
@@ -132,7 +173,7 @@ export async function runLocalQuality(options: LocalQualityOptions = {}): Promis
     }
   }
 
-  const report = await runChecks(plan, ports, baseline)
+  const report = await runChecks(plan, ports, baseline, repo)
   report.mode = mode
   report.partial = Boolean(options.only?.length)
   report.coverageNotes = [

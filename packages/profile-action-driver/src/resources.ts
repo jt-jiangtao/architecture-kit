@@ -44,6 +44,7 @@ export const ruleSources: Readonly<Record<string, string>> = Object.freeze(
       'jscpd.json',
       'syncpack.config.js',
       'dependency-cruiser.config.cjs',
+      'boundary-report.mjs',
       'gitleaks.toml',
       'targets.json'
     ].map((name) => [name, profilePrefix + 'rules/' + name])

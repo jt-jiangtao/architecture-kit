@@ -1,50 +1,37 @@
-const application = '^apps/local-runtime/src/application/'
-const client = '^packages/client/session-client/src/'
-const hooks =
-  '^apps/desktop/src/renderer/src/hooks/(use-plugin-contributions|plugin-contribution-query)\\.ts$'
+const { builtinModules } = require('node:module')
+const client = '^packages/communication/app-client/src/'
+const builtins = builtinModules.map((name) => name.replaceAll('.', '\\.')).join('|')
+const host = `^(node:|(${builtins})$|electron(/|$)|apps/|packages/agent/(runtime|runtime-storage)/|@action-driver/(agent-runtime|runtime-storage)(/|$))|node_modules/(electron|@action-driver/(agent-runtime|runtime-storage))(/|$)`
 module.exports = {
   forbidden: [
-    { name: 'workspace-no-cycles', severity: 'error', from: { path: '^(?:(?:apps|plugins)/[^/]+/src/|packages/.+/src/)' }, to: { circular: true } },
     {
-      name: 'application-no-composition',
+      name: 'workspace-no-cycles',
       severity: 'error',
-      from: { path: `${application}(?!index\\.ts$|context\\.ts$)` },
-      to: {
-        path: '^apps/local-runtime/src/composition/'
-      }
-    },
-    {
-      name: 'application-no-transport',
-      severity: 'error',
-      from: { path: application },
-      to: { path: '^apps/local-runtime/src/(transport|entrypoints|hosts|local-runtime-server)(/|\\.)' }
+      from: { path: '^(?:(?:apps|plugins)/[^/]+/src/|packages/.+/src/)' },
+      to: { circular: true }
     },
     {
       name: 'stream-internals-no-facade',
       severity: 'error',
       from: {
-        path: `${client}(stream-connection|connection-lifecycle|request-registry|stream-event-sequencer)\\.ts$`
+        path: `${client}(stream-connection|connection-lifecycle|request-registry|stream-event-sequencer|conversation-requests|conversation-projection)\\.ts$`
       },
-      to: { path: `${client}(renderer-stream-client|index)\\.ts$` }
+      to: { path: `${client}(renderer-stream-client|conversation|index)\\.ts$` }
     },
     {
       name: 'client-no-host',
       severity: 'error',
       from: { path: client },
       to: {
-        path: '^(apps/|node:|electron$|@action-driver/(agent-runtime|runtime-storage))|node_modules/(electron|@action-driver/(agent-runtime|runtime-storage))/'
+        path: host
       }
-    },
-    {
-      name: 'query-no-local-cache-owner',
-      severity: 'error',
-      from: { path: hooks },
-      to: { path: '^apps/(local-runtime|desktop/src/(main|preload))/' }
     }
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
-    exclude: { path: '(^|/)(dist|out|vendor|thirdparty)/|^apps/mobile/' },
+    exclude: {
+      path: '(^|/)(dist|out|vendor|thirdparty)/|^apps/mobile/|^packages/ui/workbench/ui/src/review/pdf-worker\\.mjs$'
+    },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {
       extensions: ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.json'],

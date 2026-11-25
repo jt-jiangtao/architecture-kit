@@ -1,9 +1,11 @@
+import path from 'node:path'
 import type { CommandResult } from '../audit/snapshot.js'
 
 export interface QualityCheck {
   id: string
   command?: string[] | undefined
   parser?: string | undefined
+  minimumPackages?: Record<string, number> | undefined
   scope?: string[] | undefined
   required?: boolean | undefined
   tool?: string | undefined
@@ -61,7 +63,11 @@ export interface QualityPorts {
 }
 
 /** Pure result policy; process, files, snapshots and clock are supplied by ports. */
-export function classify(check: QualityCheck, run: Partial<CommandResult>): QualityAssessment {
+export function classify(
+  check: QualityCheck,
+  run: Partial<CommandResult>,
+  repo = process.cwd()
+): QualityAssessment {
   const error = (notes: string): QualityAssessment => ({
     execution: 'error',
     verdict: 'unknown',
@@ -86,11 +92,22 @@ export function classify(check: QualityCheck, run: Partial<CommandResult>): Qual
   try {
     if (check.parser === 'dependency-cruiser') {
       const data = JSON.parse(run.stdout || '') as {
-        summary?: { violations?: Array<{ from: string; to: string; rule: { name: string } }>; error?: number }
+        summary?: {
+          violations?: Array<{ from: string; to: string; rule: { name: string } }>
+          error?: number
+          ruleCoverage?: Record<string, number>
+        }
       }
       if (!Array.isArray(data.summary?.violations) || !Number.isInteger(data.summary.error)) {
         throw new Error('invalid dependency-cruiser report')
       }
+      const empty = Object.entries(data.summary.ruleCoverage ?? {}).filter(
+        ([, count]) => !Number.isInteger(count) || count <= 0
+      )
+      if (data.summary.ruleCoverage && !Object.keys(data.summary.ruleCoverage).length)
+        return error('No boundary rules in report')
+      if (empty.length)
+        return error('No source coverage: ' + empty.map(([name]) => name).join(', '))
       if (code !== 0 && code !== Math.min(data.summary.error!, 255)) {
         throw new Error('dependency-cruiser exit/report mismatch')
       }
@@ -114,10 +131,12 @@ export function classify(check: QualityCheck, run: Partial<CommandResult>): Qual
             .flatMap(([kind, values]) =>
               Array.isArray(values)
                 ? values.map((value: unknown) => {
-                    const obj = value && typeof value === 'object' ? (value as { name?: string }) : null
+                    const obj =
+                      value && typeof value === 'object' ? (value as { name?: string }) : null
                     const name = typeof value === 'string' ? value : obj?.name
                     if (kind === 'files') {
-                      if (!name || name !== issue.file) throw new Error('invalid Knip file observation')
+                      if (!name || name !== issue.file)
+                        throw new Error('invalid Knip file observation')
                       return 'unused-file:' + name
                     }
                     return `${String(issue.file)}:${kind}:${name || JSON.stringify(value)}`
@@ -173,6 +192,7 @@ export function classify(check: QualityCheck, run: Partial<CommandResult>): Qual
     } else if (check.parser === 'osv') {
       const data = JSON.parse(run.stdout || '') as {
         results?: Array<{
+          source?: { path?: string }
           packages?: Array<{
             package?: { name?: string }
             vulnerabilities?: Array<{ id: string }>
@@ -180,6 +200,25 @@ export function classify(check: QualityCheck, run: Partial<CommandResult>): Qual
         }>
       }
       if (!Array.isArray(data.results)) throw new Error('invalid OSV report')
+      if (check.minimumPackages) {
+        const counts = new Map<string, number>()
+        for (const row of data.results) {
+          if (!row.source?.path || !Array.isArray(row.packages))
+            return error('Missing OSV source or packages')
+          const source = path
+            .relative(repo, path.resolve(repo, row.source.path))
+            .split(path.sep)
+            .join('/')
+          counts.set(source, (counts.get(source) ?? 0) + row.packages.length)
+        }
+        for (const [file, minimum] of Object.entries(check.minimumPackages)) {
+          const actual = counts.get(file) ?? 0
+          if (actual < minimum)
+            return error(
+              `Incomplete OSV coverage: ${file} reported ${actual} packages, expected at least ${minimum}`
+            )
+        }
+      }
       findings = data.results.flatMap((r) =>
         (r.packages || []).flatMap((p) =>
           (p.vulnerabilities || []).map((v) => `${p.package?.name}:${v.id}`)
@@ -250,7 +289,8 @@ export function compareBaseline(
 export async function runChecks(
   plan: QualityCheck[],
   ports: QualityPorts,
-  baseline?: { results?: QualityCheckResult[] | undefined }
+  baseline?: { results?: QualityCheckResult[] | undefined },
+  repo = process.cwd()
 ): Promise<QualityReport> {
   const before = await ports.snapshot()
   const started = ports.now()
@@ -272,7 +312,7 @@ export async function runChecks(
     } else {
       try {
         run = await ports.execute(check)
-        assessment = classify(check, run)
+        assessment = classify(check, run, repo)
       } catch (e) {
         assessment = {
           execution: 'error',

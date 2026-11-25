@@ -10,6 +10,7 @@ export interface CreatePlanOptions {
   out: string
   tests?: string[] | undefined
   deepSecurity?: boolean | undefined
+  dependencyManifests?: Record<string, number> | undefined
   auditRedundant?: boolean | undefined
   gitleaksConfig?: string | undefined
 }
@@ -22,6 +23,7 @@ export function createPlan({
   out,
   tests = [],
   deepSecurity = false,
+  dependencyManifests = { 'pnpm-lock.yaml': 1 },
   auditRedundant = false,
   gitleaksConfig
 }: CreatePlanOptions): QualityCheck[] {
@@ -31,7 +33,7 @@ export function createPlan({
   )
   const full = mode !== 'pr' || globalChange
   const affected = new Set(
-    packages.filter((p) => full || files.some((f) => f.startsWith(`${p.dir}/`))).map((p) => p.name)
+    packages.filter((p) => files.some((f) => f.startsWith(`${p.dir}/`))).map((p) => p.name)
   )
   let changed = true
   while (changed) {
@@ -43,7 +45,7 @@ export function createPlan({
       }
     }
   }
-  const scope = packages.filter((p) => affected.has(p.name)).map((p) => p.dir)
+  const scope = packages.filter((p) => full || affected.has(p.name)).map((p) => p.dir)
   const lintFiles = full
     ? ['apps', 'packages', 'plugins', 'scripts', 'tests', 'eslint.config.mjs']
     : files.filter((f) => /\.[cm]?[jt]sx?$/.test(f))
@@ -70,6 +72,15 @@ export function createPlan({
   }
 
   const pnpm = (...args: string[]) => ['pnpm', ...args]
+  const sdk = packages.find((pkg) => pkg.name === '@action-driver/native-plugin-sdk')
+  const sdkBuildInput = files.some((file) =>
+    ['pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'package.json'].includes(file)
+  )
+  if (sdk && (mode !== 'pr' || affected.has(sdk.name) || sdkBuildInput)) {
+    add('native-plugin-sdk-api', pnpm('--filter', sdk.name, 'api:check'), 'exit', {
+      scope: [sdk.dir]
+    })
+  }
   if (lintFiles.length) {
     add('eslint', pnpm('exec', 'eslint', ...lintFiles, '--format', 'json'), 'eslint', {
       tool: 'eslint',
@@ -230,9 +241,20 @@ export function createPlan({
   if (deepSecurity) {
     add(
       'osv',
-      ['osv-scanner', 'scan', 'source', '--lockfile=pnpm-lock.yaml', '--format=json'],
+      [
+        'osv-scanner',
+        'scan',
+        'source',
+        '--all-packages',
+        ...Object.keys(dependencyManifests).map((file) => '--lockfile=' + file),
+        '--format=json'
+      ],
       'osv',
-      { tool: 'osv-scanner', scope: ['pnpm-lock.yaml cross-check'] }
+      {
+        tool: 'osv-scanner',
+        scope: Object.keys(dependencyManifests),
+        minimumPackages: dependencyManifests
+      }
     )
   }
   if (auditRedundant) {

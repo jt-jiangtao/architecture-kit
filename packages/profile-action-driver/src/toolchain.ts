@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { workspacePackages } from '@architecture-kit/analyzers'
 import { profileBaseDir } from './resources.js'
 
 const require = createRequire(import.meta.url)
@@ -48,25 +50,33 @@ export function toolCommand(tool: string, args: string[] = []): string[] {
 }
 
 export function boundaryCommand(repo: string, args: string[] = []): string[] | null {
-  const roots = ['apps', 'packages', 'plugins']
-    .flatMap((group) => {
-      let entries: fs.Dirent[]
-      try {
-        entries = fs.readdirSync(path.join(repo, group), { withFileTypes: true })
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
-        throw error
-      }
-      return entries
-        .filter((ent) => ent.isDirectory() && fs.existsSync(path.join(repo, group, ent.name, 'src')))
-        .map((ent) => path.join(group, ent.name, 'src'))
-    })
+  const declared = fs.existsSync(path.join(repo, 'pnpm-workspace.yaml'))
+  const directories = declared
+    ? workspacePackages(repo).map((pkg) => pkg.dir)
+    : ['apps', 'packages', 'plugins']
+        .filter((group) => fs.existsSync(path.join(repo, group)))
+        .flatMap((group) =>
+          fs
+            .readdirSync(path.join(repo, group), { withFileTypes: true })
+            .filter((entry) => entry.isDirectory())
+            .map((entry) => path.join(group, entry.name))
+        )
+  const roots = directories
+    .map((dir) => path.join(dir, 'src'))
+    .filter((dir) => fs.existsSync(path.join(repo, dir)))
     .sort()
-  if (!roots.length && !args.length) return null
+  if (!roots.length) {
+    if (declared) throw new Error('No product source roots in declared workspace packages')
+    return null
+  }
+  const json = args.length === 2 && args[0] === '--output-type' && args[1] === 'json'
+  const reporter = pathToFileURL(path.join(profileBaseDir, 'rules/boundary-report.mjs'))
+  reporter.searchParams.set('format', json ? 'json' : 'text')
+  const outputArgs = !args.length || json ? ['--output-type', 'plugin:' + reporter.href] : args
   return toolCommand('depcruise', [
     '--config',
     path.join(profileBaseDir, 'rules/dependency-cruiser.config.cjs'),
-    ...args,
+    ...outputArgs,
     ...roots
   ])
 }

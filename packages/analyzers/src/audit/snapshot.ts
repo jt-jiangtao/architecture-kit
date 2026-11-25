@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { parse } from 'yaml'
+import { workspaceMember } from '../workspace.js'
 
 export interface CommandResult {
   code: number | null
@@ -199,32 +201,40 @@ export function changedFiles(repo: string, base?: string): string[] {
 }
 
 export function workspacePackages(repo: string): WorkspacePackageInfo[] {
-  const result: WorkspacePackageInfo[] = []
-  for (const root of ['apps', 'packages', 'plugins']) {
-    if (!fs.existsSync(path.join(repo, root))) continue
-    for (const name of fs.readdirSync(path.join(repo, root))) {
-      if (root === 'apps' && name === 'mobile') continue
-      const dir = `${root}/${name}`
-      const file = path.join(repo, dir, 'package.json')
-      if (!fs.existsSync(file)) continue
-      const pkg = JSON.parse(fs.readFileSync(file, 'utf8')) as {
-        name?: string
-        dependencies?: Record<string, string>
-        devDependencies?: Record<string, string>
-        peerDependencies?: Record<string, string>
-        optionalDependencies?: Record<string, string>
-      }
-      result.push({
-        dir,
-        name: pkg.name ?? name,
-        dependencies: Object.keys({
-          ...pkg.dependencies,
-          ...pkg.devDependencies,
-          ...pkg.peerDependencies,
-          ...pkg.optionalDependencies
-        })
-      })
+  const workspaceFile = path.join(repo, 'pnpm-workspace.yaml')
+  const workspace = fs.existsSync(workspaceFile)
+    ? parse(fs.readFileSync(workspaceFile, 'utf8'))
+    : { packages: ['apps/*', 'packages/*', 'plugins/*'] }
+  const member = workspaceMember(workspace)
+  const patterns: string[] = workspace?.packages ?? ['**']
+  const manifests = fs.globSync(
+    patterns.filter((p) => !p.startsWith('!')).map((p) => path.posix.join(p, 'package.json')),
+    {
+      cwd: repo,
+      exclude: ['**/node_modules/**', '**/.git/**', '**/dist/**', 'thirdparty/**', 'workbench/**']
     }
+  )
+  const result: WorkspacePackageInfo[] = []
+  for (const file of [...new Set(manifests)].sort()) {
+    const dir = path.dirname(file).split(path.sep).join('/')
+    if (dir === '.' || dir === 'apps/mobile' || !member(dir)) continue
+    const pkg = JSON.parse(fs.readFileSync(path.join(repo, file), 'utf8')) as {
+      name?: string
+      dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
+      peerDependencies?: Record<string, string>
+      optionalDependencies?: Record<string, string>
+    }
+    result.push({
+      dir,
+      name: pkg.name ?? path.basename(dir),
+      dependencies: Object.keys({
+        ...pkg.dependencies,
+        ...pkg.devDependencies,
+        ...pkg.peerDependencies,
+        ...pkg.optionalDependencies
+      })
+    })
   }
   return result
 }
