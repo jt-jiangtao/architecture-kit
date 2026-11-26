@@ -1,11 +1,14 @@
 import { z } from 'zod'
 import { mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve, sep, win32 } from 'node:path'
-import type { FlowName } from '@architecture-kit/core-ir'
+import type { FlowName, GateProfileName } from '@architecture-kit/core-ir'
 import type {
+  AgentToolingConfig,
   ArchitectureConfig,
   ArchitectureModule,
   CleanupConfig,
+  GateCheckConfig,
+  GateConfig,
   HookConfig,
   HookPhase,
   LegacyModule,
@@ -19,10 +22,14 @@ import type {
 import { confinePath, hasErrnoCode } from '@architecture-kit/runtime'
 
 export type {
+  AgentToolingConfig,
   ArchitectureConfig,
   ArchitectureModule,
   CleanupConfig,
   FlowName,
+  GateCheckConfig,
+  GateConfig,
+  GateProfileName,
   HookConfig,
   HookPhase,
   LegacyModule,
@@ -206,6 +213,68 @@ export const LegacyModuleSchema = z.strictObject({
   )
 })
 
+const gateProfileNames = ['local', 'presubmit', 'ci', 'release'] as const
+
+const GateCheckCommonFields = {
+  id: nonemptyString('gate.check.id').regex(
+    /^[a-zA-Z0-9_-][a-zA-Z0-9._:-]*$/,
+    'gate.check.id: invalid check ID'
+  ),
+  title: nonemptyString('gate.check.title').optional(),
+  group: nonemptyString('gate.check.group').default('default'),
+  required: z.boolean().default(true),
+  profiles: distinctChoicesSchema('gate.check.profiles', gateProfileNames).default([
+    'presubmit',
+    'ci'
+  ]),
+  stopOnFail: z.boolean().optional()
+}
+
+export const GateBuiltinCheckSchema = z.strictObject({
+  ...GateCheckCommonFields,
+  kind: z.literal('builtin'),
+  builtin: nonemptyString('gate.check.builtin'),
+  options: z.record(z.string(), z.unknown()).optional()
+})
+
+export const GateCommandCheckSchema = z.strictObject({
+  ...GateCheckCommonFields,
+  kind: z.literal('command'),
+  command: z.array(nonemptyString('gate.check.command')).min(1),
+  cwd: localPathSchema('gate.check.cwd').optional(),
+  env: z.record(z.string(), z.string()).optional()
+})
+
+export const GateCheckSchema = z.discriminatedUnion('kind', [
+  GateBuiltinCheckSchema,
+  GateCommandCheckSchema
+])
+
+export const GateConfigSchema = z
+  .strictObject({
+    $schema: z.string().optional(),
+    enabled: z.boolean().default(true),
+    defaultProfile: z.enum(gateProfileNames).default('presubmit'),
+    checks: z.array(GateCheckSchema)
+  })
+  .superRefine((cfg, ctx) => {
+    const ids = new Set<string>()
+    for (const check of cfg.checks) {
+      if (ids.has(check.id)) {
+        ctx.addIssue({ code: 'custom', message: `gate.checks: duplicate ID ${check.id}` })
+      }
+      ids.add(check.id)
+    }
+  })
+
+export const AgentToolingConfigSchema = z.strictObject({
+  $schema: z.string().optional(),
+  enabled: z.boolean().default(true),
+  policyFile: localPathSchema('agent.policyFile').optional(),
+  toolchainFile: localPathSchema('agent.toolchainFile').optional(),
+  servicesFile: localPathSchema('agent.servicesFile').optional()
+})
+
 export const RootConfigSchema = z.strictObject({
   $schema: z.string().optional(),
   schemaVersion: z.literal(1),
@@ -220,6 +289,8 @@ export const RootConfigSchema = z.strictObject({
       optimize: localPathSchema('flows.optimize').optional()
     })
     .optional(),
+  gate: localPathSchema('gate').optional(),
+  agent: localPathSchema('agent').optional(),
   profile: nonemptyString('profile').optional(),
   allowApply: z.boolean().optional(),
   architectureModule: z
@@ -235,7 +306,9 @@ export function generateConfigJsonSchema() {
     root: z.toJSONSchema(RootConfigSchema),
     cleanup: z.toJSONSchema(CleanupConfigSchema),
     architecture: z.toJSONSchema(ArchitectureConfigSchema),
-    optimize: z.toJSONSchema(OptimizeConfigSchema)
+    optimize: z.toJSONSchema(OptimizeConfigSchema),
+    gate: z.toJSONSchema(GateConfigSchema),
+    agent: z.toJSONSchema(AgentToolingConfigSchema)
   }
 }
 
@@ -421,6 +494,8 @@ async function parseRoot(file: string, registry: ProfileRegistry) {
     root,
     storage,
     flowFiles,
+    gateFile: raw.gate,
+    agentFile: raw.agent,
     architectureModule: raw.architectureModule,
     inputPaths,
     inputFile,
@@ -536,6 +611,8 @@ export async function loadConfig(
     root,
     storage,
     flowFiles,
+    gateFile,
+    agentFile,
     inputPaths,
     inputFile,
     activeProfile,
@@ -544,7 +621,8 @@ export async function loadConfig(
   } = await parseRoot(file, registry)
 
   const flows: ResolvedConfig['flows'] = {}
-  for (const name of only ? [only] : flowNames) {
+  const selectedFlows = only && only !== 'gate' ? [only] : only === 'gate' ? [] : flowNames
+  for (const name of selectedFlows) {
     const path = flowFiles[name]
     if (!path) {
       if (only) invalid(name, 'flow not registered')
@@ -616,6 +694,63 @@ export async function loadConfig(
       await inputFile(ref, 'profile rule')
     }
   }
+  let gate: GateConfig | undefined
+  if (gateFile !== undefined) {
+    const ref = await inputFile(gateFile, 'gate')
+    const rawGate = await readJson(resolve(root, ref))
+    const parsedGate = parseSchema(GateConfigSchema, rawGate, 'gate')
+    gate = {
+      enabled: parsedGate.enabled,
+      defaultProfile: parsedGate.defaultProfile,
+      checks: parsedGate.checks.map((item): GateCheckConfig => {
+        if (item.kind === 'builtin') {
+          return {
+            id: item.id,
+            ...(item.title !== undefined ? { title: item.title } : {}),
+            group: item.group,
+            required: item.required,
+            profiles: item.profiles,
+            kind: 'builtin',
+            builtin: item.builtin,
+            ...(item.options !== undefined ? { options: item.options } : {}),
+            ...(item.stopOnFail !== undefined ? { stopOnFail: item.stopOnFail } : {})
+          }
+        }
+        return {
+          id: item.id,
+          ...(item.title !== undefined ? { title: item.title } : {}),
+          group: item.group,
+          required: item.required,
+          profiles: item.profiles,
+          kind: 'command',
+          command: item.command,
+          ...(item.cwd !== undefined ? { cwd: item.cwd } : {}),
+          ...(item.env !== undefined ? { env: item.env } : {}),
+          ...(item.stopOnFail !== undefined ? { stopOnFail: item.stopOnFail } : {})
+        }
+      })
+    }
+  } else if (only === 'gate') {
+    invalid('gate', 'gate configuration not registered')
+  }
+  let agent: AgentToolingConfig | undefined
+  if (agentFile !== undefined) {
+    const ref = await inputFile(agentFile, 'agent')
+    const rawAgent = await readJson(resolve(root, ref))
+    const parsedAgent = parseSchema(AgentToolingConfigSchema, rawAgent, 'agent')
+    agent = {
+      enabled: parsedAgent.enabled,
+      ...(parsedAgent.policyFile !== undefined
+        ? { policyFile: await inputFile(parsedAgent.policyFile, 'agent.policyFile') }
+        : {}),
+      ...(parsedAgent.toolchainFile !== undefined
+        ? { toolchainFile: await inputFile(parsedAgent.toolchainFile, 'agent.toolchainFile') }
+        : {}),
+      ...(parsedAgent.servicesFile !== undefined
+        ? { servicesFile: await inputFile(parsedAgent.servicesFile, 'agent.servicesFile') }
+        : {})
+    }
+  }
   return {
     ...(activeProfile
       ? {
@@ -627,6 +762,8 @@ export async function loadConfig(
     root,
     storage,
     flows,
+    ...(gate ? { gate } : {}),
+    ...(agent ? { agent } : {}),
     inputPaths: [...inputPaths].sort()
   }
 }

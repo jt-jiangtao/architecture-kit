@@ -1,0 +1,5 @@
+# Shared Python lint preset provided by architecture-kit.
+target-version = "py311"
+
+[lint]
+select = ["E4", "E7", "E9", "F"]

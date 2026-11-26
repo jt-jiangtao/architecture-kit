@@ -1,0 +1,49 @@
+{
+  "enabled": true,
+  "defaultProfile": "presubmit",
+  "checks": [
+    {
+      "id": "build",
+      "title": "TypeScript project references build",
+      "group": "ts",
+      "required": true,
+      "profiles": ["local", "presubmit", "ci"],
+      "kind": "command",
+      "command": ["pnpm", "build"],
+      "stopOnFail": true
+    },
+    {
+      "id": "typecheck",
+      "title": "TypeScript strict typecheck",
+      "group": "ts",
+      "required": true,
+      "profiles": ["local", "presubmit", "ci"],
+      "kind": "command",
+      "command": ["pnpm", "typecheck"]
+    },
+    {
+      "id": "lint",
+      "title": "ESLint checks",
+      "group": "ts",
+      "required": true,
+      "profiles": ["local", "presubmit", "ci"],
+      "kind": "command",
+      "command": ["pnpm", "lint"]
+    },
+    {
+      "id": "workspace-boundaries",
+      "title": "Workspace dependency cycles & boundaries",
+      "group": "boundaries",
+      "required": true,
+      "profiles": ["local", "presubmit", "ci"],
+      "kind": "builtin",
+      "builtin": "workspace-boundaries",
+      "options": {
+        "roots": ["apps", "packages"],
+        "nestedRoots": [],
+        "sourceDirs": ["src"],
+        "checkCycles": true
+      }
+    }
+  ]
+}

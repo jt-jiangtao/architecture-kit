@@ -15,6 +15,8 @@
     { "path": "../../packages/flow-architecture" },
     { "path": "../../packages/flow-cleanup" },
     { "path": "../../packages/flow-optimize" },
+    { "path": "../../packages/flow-gate" },
+    { "path": "../../packages/agent-tooling" },
     { "path": "../../packages/profile-action-driver" },
     { "path": "../mcp-server" },
     { "path": "../dev-server" }

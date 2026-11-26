@@ -23,7 +23,7 @@
       {
         "id": "validate-config",
         "required": true,
-        "script": "./scripts/validate-config.mjs"
+        "script": "./scripts/check/validate-config.mjs"
       }
     ],
     "check.end": [

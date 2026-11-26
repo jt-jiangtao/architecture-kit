@@ -15,6 +15,8 @@ export * from './documents.js'
 export * from './knip.js'
 export * from './optimization-patterns.js'
 export * from './architecture-collector.js'
+export * from './boundaries.js'
+export * from './code-guards.js'
 export * from './audit/index.js'
 export * from './quality/index.js'
 

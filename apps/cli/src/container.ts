@@ -3,6 +3,8 @@ import { Container, type ResolutionContext } from 'inversify'
 import {
   DI_TOKENS,
   type CleanupPorts,
+  type GatePorts,
+  type ProcessPort,
   type ProfilePlugin,
   type ProfileRegistry,
   type ResolvedConfig
@@ -18,9 +20,11 @@ import {
 } from '@architecture-kit/runtime'
 import {
   analyzersContainerModule,
+  runBuiltinGateCheck,
   type runKnip
 } from '@architecture-kit/analyzers'
 import { renderersContainerModule } from '@architecture-kit/renderers'
+import { agentToolingContainerModule } from '@architecture-kit/agent-tooling'
 import {
   actionDriverContainerModule,
   actionDriverProfile
@@ -34,6 +38,7 @@ export async function createAppContainer(
     runtimeContainerModule,
     analyzersContainerModule,
     renderersContainerModule,
+    agentToolingContainerModule,
     actionDriverContainerModule
   )
   container
@@ -105,6 +110,23 @@ export function createRoundScope(
           return inputDigest
         },
         ...(auditRunner ? { runAudit: auditRunner } : {})
+      }
+    })
+    .inSingletonScope()
+
+  child
+    .bind<GatePorts>(DI_TOKENS.GatePorts)
+    .toDynamicValue((ctx: ResolutionContext): GatePorts => {
+      const processRunner = ctx.get<ProcessPort['run']>(DI_TOKENS.ProcessRunner)
+      return {
+        runCommand: (root, argv, opts) => {
+          const workdir = opts.cwd ? resolve(root, opts.cwd) : root
+          const env = opts.env ? { ...process.env, ...opts.env } : process.env
+          return processRunner(workdir, argv, opts.signal, env)
+        },
+        runBuiltin: (root, builtinId, opts, signal, context) =>
+          runBuiltinGateCheck(root, builtinId, opts, signal, context),
+        progress: (line) => console.error(line)
       }
     })
     .inSingletonScope()

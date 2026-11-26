@@ -38,6 +38,8 @@ import { actionDriverProfile } from '@architecture-kit/profile-action-driver'
 import { installRepairSkill } from './skills.js'
 import { optimizeOperation } from './optimize-operation.js'
 import { createAppContainer, createRoundScope } from './container.js'
+import { isDirectAgentInvocation, runAgentCommand } from './agent-command.js'
+import { runGateCommand } from './gate-command.js'
 
 export { createAppContainer, createRoundScope }
 const commands = new Map([
@@ -105,7 +107,51 @@ const commands = new Map([
   ['architecture watch', 'Watch local changes and serve a browser preview [--port NUMBER].'],
   ['architecture mcp', 'Serve read-only queries over MCP stdio.'],
   ['architecture generate', 'Generate module and source indexes.'],
-  ['cleanup check', 'Run read-only analysis, configured tools and hooks.']
+  ['cleanup check', 'Run read-only analysis, configured tools and hooks.'],
+  [
+    'gate run',
+    'Run unified quality & architecture gates: [--profile local|presubmit|ci|release] [--group G1,G2] [--only ID1,ID2] [--changed] [--base REF] [--sarif FILE] [--fail-fast] [--json].'
+  ],
+  [
+    'gate list',
+    'List configured gate checks for a profile/group: [--profile NAME] [--group G1,G2] [--json].'
+  ],
+  [
+    'agent configure',
+    'Configure Codex/Claude host settings from repository policy.'
+  ],
+  [
+    'agent check',
+    'Verify Codex/Claude host settings and projections are up to date.'
+  ],
+  [
+    'agent capture',
+    'Capture Codex development verification transcript.'
+  ],
+  [
+    'agent tools',
+    'Manage agent development tools: status | install [--dry-run] [--json].'
+  ],
+  [
+    'agent guard',
+    'Run test-guard policy check or PreToolUse hook: check | hook.'
+  ],
+  [
+    'agent secrets',
+    'Scan staged and working-tree changes for secrets via gitleaks.'
+  ],
+  [
+    'agent docs',
+    'Check changed or governance Markdown links via lychee [--all] [--online].'
+  ],
+  [
+    'agent skills',
+    'Validate installed .agents/skills catalog, Claude links, and lockfile.'
+  ],
+  [
+    'agent garden',
+    'Inspect branch status, OpenSpec active changes, workbench, and local configs.'
+  ]
 ])
 
 function help(topic: string) {
@@ -167,6 +213,10 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
     )
     const configOptions = { profiles, discoverModules: moduleDiscoverer }
 
+    if (isDirectAgentInvocation(argv)) {
+      return runAgentCommand(argv)
+    }
+
     const { values, positionals } = parseArgs({
       args: argv,
       allowPositionals: true,
@@ -194,12 +244,35 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
         mode: { type: 'string' },
         tests: { type: 'string' },
         apply: { type: 'boolean' },
-        'as-of': { type: 'string' }
+        'as-of': { type: 'string' },
+        profile: { type: 'string' },
+        group: { type: 'string' },
+        sarif: { type: 'string' },
+        'fail-fast': { type: 'boolean' },
+        changed: { type: 'boolean' }
       }
     })
     const capture =
       positionals[0] === 'optimize' && positionals[1] === 'capture'
-    const cmd = capture ? 'optimize capture' : positionals.join(' ')
+    const isAgentCmd =
+      positionals[0] === 'agent' &&
+      typeof positionals[1] === 'string' &&
+      [
+        'configure',
+        'check',
+        'capture',
+        'tools',
+        'guard',
+        'secrets',
+        'docs',
+        'skills',
+        'garden'
+      ].includes(positionals[1])
+    const cmd = capture
+      ? 'optimize capture'
+      : isAgentCmd
+        ? `agent ${positionals[1]}`
+        : positionals.join(' ')
     if (values.version) {
       console.log('architecture-kit ' + ARCHITECTURE_KIT_VERSION)
       return 0
@@ -212,11 +285,12 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
       throw new Error(
         'Expected a command. See architecture-kit ' +
           (positionals.length === 1 &&
-          ['config', 'cleanup', 'architecture', 'optimize'].includes(cmd)
+          ['config', 'cleanup', 'architecture', 'optimize', 'gate', 'agent'].includes(cmd)
             ? cmd + ' '
             : '') +
           '--help'
       )
+    const isGateCmd = cmd === 'gate run' || cmd === 'gate list'
     const flow = cmd.startsWith('cleanup ')
       ? 'cleanup'
       : cmd === 'optimize check'
@@ -224,14 +298,24 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
         : cmd === 'architecture generate'
           ? 'architecture'
           : undefined
-    if (!flow && (values.json || values['run-id'] !== undefined))
+    if (!flow && !isGateCmd && (values.json || values['run-id'] !== undefined))
       throw new Error(
-        'Flow options require a cleanup, architecture or optimize command'
+        'Flow options require a cleanup, architecture, optimize or gate command'
       )
+    if (
+      !isGateCmd &&
+      (values.profile !== undefined ||
+        values.group !== undefined ||
+        values.sarif !== undefined ||
+        values['fail-fast'] !== undefined ||
+        values.changed !== undefined)
+    )
+      throw new Error('Gate options require gate run or gate list')
     const follow =
       flow === 'cleanup' && !['cleanup check', 'cleanup prepare'].includes(cmd)
     if (
       !follow &&
+      !isGateCmd &&
       [
         ...(flow === 'optimize' ? [] : ['from']),
         'candidate',
@@ -346,6 +430,16 @@ export async function main(argv: string[], canPublishPreview?: () => boolean): P
       await initConfig(file, configOptions)
       console.log('Configuration ready: ' + file)
       return 0
+    }
+    if (isGateCmd) {
+      return await runGateCommand(
+        appContainer,
+        cmd as 'gate run' | 'gate list',
+        file,
+        values,
+        configOptions,
+        controller.signal
+      )
     }
     const config = await loadConfig(file, flow, configOptions)
     const activeProfile = config.profile ? profiles.get(config.profile) : undefined

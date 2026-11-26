@@ -1,0 +1,33 @@
+name: Architecture Kit CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: kit-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: Build, Typecheck, Lint & Boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Run self-hosted architecture-kit gates
+        run: node bin/architecture-kit.mjs gate run --profile ci --sarif artifacts/kit-gates.sarif
+      - name: Upload SARIF
+        if: always() && hashFiles('artifacts/kit-gates.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: artifacts/kit-gates.sarif
+          category: architecture-kit-self-gates

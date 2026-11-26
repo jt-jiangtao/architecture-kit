@@ -6,7 +6,7 @@ import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const root = fileURLToPath(new URL('../', import.meta.url))
+const root = process.env.ARCHITECTURE_KIT_TARGET_ROOT || fileURLToPath(new URL('../', import.meta.url))
 const configPath = path.join(root, 'config/agent-development/toolchain.json')
 const localPrefix = path.join(homedir(), '.local')
 const localBin = path.join(localPrefix, 'bin')

@@ -5,7 +5,7 @@ import { join, dirname } from 'node:path'
 import { realpathSync } from 'node:fs'
 import { mergeManagedConfig, renderConfig, captureCommand } from './lib/codex-development.mjs'
 
-const root = fileURLToPath(new URL('../', import.meta.url))
+const root = process.env.ARCHITECTURE_KIT_TARGET_ROOT || fileURLToPath(new URL('../', import.meta.url))
 const [action, ...args] = process.argv.slice(2)
 
 function run(command, argv, input) {

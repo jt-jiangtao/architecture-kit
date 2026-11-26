@@ -27,6 +27,8 @@
     "@architecture-kit/flow-architecture": "workspace:*",
     "@architecture-kit/flow-cleanup": "workspace:*",
     "@architecture-kit/flow-optimize": "workspace:*",
+    "@architecture-kit/flow-gate": "workspace:*",
+    "@architecture-kit/agent-tooling": "workspace:*",
     "@architecture-kit/profile-action-driver": "workspace:*",
     "@architecture-kit/mcp-server": "workspace:*",
     "@architecture-kit/dev-server": "workspace:*",

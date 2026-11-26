@@ -4,6 +4,8 @@ import type {
   Debt,
   FactSnapshot,
   FlowName,
+  GateFinding,
+  GateProfileName,
   KnipMode,
   KnipRun,
   OptimizeResultTask,
@@ -83,6 +85,46 @@ export interface OptimizeConfig {
   scanRoots: string[]
 }
 
+export interface GateBuiltinCheckConfig {
+  id: string
+  title?: string
+  group: string
+  required: boolean
+  profiles: GateProfileName[]
+  kind: 'builtin'
+  builtin: string
+  options?: Record<string, unknown>
+  stopOnFail?: boolean
+}
+
+export interface GateCommandCheckConfig {
+  id: string
+  title?: string
+  group: string
+  required: boolean
+  profiles: GateProfileName[]
+  kind: 'command'
+  command: string[]
+  cwd?: string
+  env?: Record<string, string>
+  stopOnFail?: boolean
+}
+
+export type GateCheckConfig = GateBuiltinCheckConfig | GateCommandCheckConfig
+
+export interface GateConfig {
+  enabled: boolean
+  defaultProfile: GateProfileName
+  checks: GateCheckConfig[]
+}
+
+export interface AgentToolingConfig {
+  enabled: boolean
+  policyFile?: string
+  toolchainFile?: string
+  servicesFile?: string
+}
+
 export interface ResolvedConfig {
   profile?: string
   sources?: {
@@ -98,6 +140,8 @@ export interface ResolvedConfig {
     architecture?: ArchitectureConfig
     optimize?: OptimizeConfig
   }
+  gate?: GateConfig
+  agent?: AgentToolingConfig
 }
 
 export type ProcessResult = {
@@ -254,6 +298,44 @@ export interface ProfileRegistry {
   all(): readonly ProfilePlugin[]
 }
 
+export interface GateBuiltinRunResult {
+  ok: boolean
+  exitCode: number
+  summary?: string
+  findings?: GateFinding[]
+  stdout?: string
+  stderr?: string
+}
+
+export interface GateBuiltinContext {
+  changedFiles?: readonly string[] | undefined
+}
+
+export interface GatePorts {
+  runCommand(
+    root: string,
+    argv: string[],
+    options: {
+      cwd?: string
+      env?: Record<string, string>
+      signal: AbortSignal
+    }
+  ): Promise<ProcessResult>
+  runBuiltin(
+    root: string,
+    builtinId: string,
+    options: Record<string, unknown> | undefined,
+    signal: AbortSignal,
+    context?: GateBuiltinContext
+  ): Promise<GateBuiltinRunResult>
+  progress?: (line: string) => void
+}
+
+export interface AgentToolingPorts {
+  runProcess: ProcessPort['run']
+  progress?: (line: string) => void
+}
+
 export const DI_TOKENS = Object.freeze({
   ProfileRegistry: Symbol.for('ArchitectureKit.ProfileRegistry'),
   ArchitectureCollector: Symbol.for('ArchitectureKit.ArchitectureCollector'),
@@ -270,7 +352,9 @@ export const DI_TOKENS = Object.freeze({
   ActiveProfile: Symbol.for('ArchitectureKit.ActiveProfile'),
   Round: Symbol.for('ArchitectureKit.Round'),
   AbortSignal: Symbol.for('ArchitectureKit.AbortSignal'),
-  CleanupPorts: Symbol.for('ArchitectureKit.CleanupPorts')
+  CleanupPorts: Symbol.for('ArchitectureKit.CleanupPorts'),
+  GatePorts: Symbol.for('ArchitectureKit.GatePorts'),
+  AgentToolingPorts: Symbol.for('ArchitectureKit.AgentToolingPorts')
 })
 
 export type { OptimizeResultTask }

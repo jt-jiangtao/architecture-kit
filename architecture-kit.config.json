@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "storage": {
+    "root": ".architecture-kit",
+    "output": "output"
+  },
+  "gate": "config/kit-gates.json"
+}

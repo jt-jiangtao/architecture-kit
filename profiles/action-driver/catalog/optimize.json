@@ -2,35 +2,6 @@
   "enabled": true,
   "tasks": [
     {
-      "id": "rollout-oversized-page",
-      "kind": "metric",
-      "title": "超预算请求的一页读取",
-      "target": "packages/agent/runtime-storage/src/rollout/request-event-view.ts",
-      "hypothesis": "首个事件已足够返回时，是否仍派生整个后缀？",
-      "inputs": [
-        "profile:action-driver/probes/oversized-page.fixture.ts",
-        "packages/agent/runtime-storage/tests/rollout/request-event-cache.test.ts",
-        "vitest.config.ts",
-        "packages/agent/runtime-storage/src/rollout/event-bridge.ts",
-        "packages/agent/runtime-storage/src/rollout/fold.ts",
-        "profile:action-driver/probes/vitest-probe.mjs"
-      ],
-      "check": [
-        "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "packages/agent/runtime-storage/tests/rollout/request-event-cache.test.ts"
-      ],
-      "measure": [
-        "node",
-        "profile:action-driver/probes/vitest-probe.mjs",
-        "oversized-page"
-      ],
-      "unit": "deriveLine calls/page",
-      "direction": "lower",
-      "tolerance": 0
-    },
-    {
       "id": "rollout-append-read",
       "kind": "gate",
       "title": "长历史追加与增量读取预算",
@@ -504,38 +475,6 @@
       "unit": "frames/s",
       "direction": "higher",
       "tolerance": 0.05
-    },
-    {
-      "id": "context-budget",
-      "kind": "gate",
-      "title": "上下文裁剪与预算",
-      "target": "docs/development/agent-context-optimization.md",
-      "hypothesis": "检查裁剪后必要上下文和约束是否保留",
-      "inputs": [
-        "packages/agent/agent-runtime/tests/unit/context-budget.test.ts"
-      ],
-      "check": [
-        "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "packages/agent/agent-runtime/tests/unit/context-budget.test.ts"
-      ]
-    },
-    {
-      "id": "lazy-activation",
-      "kind": "gate",
-      "title": "延迟激活边界",
-      "target": "docs/development/demand-driven-loading.md",
-      "hypothesis": "只有进入相应路径才应激活模块",
-      "inputs": [
-        "tests/architecture/builtin-lazy-activation.test.ts"
-      ],
-      "check": [
-        "node",
-        "node_modules/vitest/vitest.mjs",
-        "run",
-        "tests/architecture/builtin-lazy-activation.test.ts"
-      ]
     },
     {
       "id": "boundary-responsibility",

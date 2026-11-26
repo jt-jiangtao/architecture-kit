@@ -1,4 +1,4 @@
-export type FlowName = 'cleanup' | 'architecture' | 'optimize'
+export type FlowName = 'cleanup' | 'architecture' | 'optimize' | 'gate'
 
 export type Round = {
   runId: string

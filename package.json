@@ -14,6 +14,7 @@
     "typecheck": "tsc -b --noEmit && tsc --noEmit -p apps/project-panel/tsconfig.ui.json",
     "clean": "tsc -b --clean",
     "lint": "eslint bin scripts tests eslint.config.mjs",
+    "gate": "node bin/architecture-kit.mjs gate run --profile presubmit",
     "format:check": "prettier --check \"packages/**/*.ts\" \"apps/**/*.ts\" \"apps/**/*.tsx\"",
     "check:boundaries": "node --test tests/boundaries.test.mjs",
     "skills:list": "skills list",
@@ -51,6 +52,16 @@
       "types": "./packages/config/dist/index.d.ts",
       "default": "./packages/config/dist/index.js"
     },
+    "./presets/eslint": {
+      "types": "./packages/presets/dist/eslint.d.ts",
+      "default": "./packages/presets/dist/eslint.js"
+    },
+    "./presets/prettier": {
+      "types": "./packages/presets/dist/prettier.d.ts",
+      "default": "./packages/presets/dist/prettier.js"
+    },
+    "./presets/ruff.toml": "./packages/presets/ruff.toml",
+    "./presets/tsconfig.base.json": "./packages/presets/tsconfig.base.json",
     "./profiles/action-driver/*": "./profiles/action-driver/*"
   },
   "files": [

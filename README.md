@@ -97,3 +97,12 @@ Use one architecture configuration for the workspace. Its scan lists public pack
 - `architecture mcp` starts a read-only stdio MCP server. Launch it with the same consumer working directory and config. Clients can call `lookup_symbol` (export name or package#export, optional file), `get_component`, or `get_decision` with an exact ID. Responses include the round version, Git revision, preview/commit mode and the relative site directory. A query reads one complete round. Use list_modules, read_doc, and lookup_type to explore module guides, local diagrams and linked type definitions. Separate clients using the same configuration share the same published pointer.
 
 [Action-Driver local harness and agent-runtime example](playground/action-driver-workspace/README.md)
+
+## Unified Gates, Shared Presets & Agent Tooling
+
+Architecture Kit provides a unified, config-driven gate orchestrator (`@architecture-kit/flow-gate`), shared base presets (`@architecture-kit/presets`), and centralized agent development guardrails (`@architecture-kit/agent-tooling`):
+
+- **Unified Gates (`gate run` / `gate list`)**: Configure `"gate": "config/quality/kit-gates.json"` in `architecture-kit.config.json` to run builtin analyzers (`layers`, `workspace-boundaries`, `lazy-imports`, `go-stdlib-log`) alongside repository-specific custom commands under `local`, `presubmit`, `ci`, or `release` profiles, with `--group`, `--only`, `--json`, and `--sarif <file>` (SARIF 2.1.0) support.
+- **Shared Presets (`architecture-kit/presets/*`)**: Inheritable `eslint.mjs`, `prettier.cjs`, `ruff.toml`, and `tsconfig.base.json` presets so consuming repos only declare project-specific overrides.
+- **Agent Tooling & Guardrails (`agent <subcommand>`)**: Single-source `agent configure|check|capture|tools|guard|secrets|docs|skills|garden` commands operating against the consuming repository root.
+
