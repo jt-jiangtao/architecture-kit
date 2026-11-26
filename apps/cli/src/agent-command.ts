@@ -47,7 +47,7 @@ export function runAgentCommand(argv: string[]): number {
     }
   }
   const targetRoot = resolve(dirname(configFile))
-  if (sub === 'garden') return runWorkflowGarden(targetRoot)
+  if (sub === 'garden') return runWorkflowGarden(targetRoot, cleanedRest)
   if (sub === 'secrets') return runAgentSecretsScan(targetRoot)
   if (sub === 'skills') return runSkillsCheck(targetRoot)
   if (sub === 'docs') {
